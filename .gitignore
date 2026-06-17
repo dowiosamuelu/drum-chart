@@ -1,5 +1,33 @@
+# OS
 .DS_Store
+Thumbs.db
 
-# 自架的 GrooveScribe 是外部依賴（有自己的 .git），不納入本專案版控
-# 若缺少，請重新取得：git clone --depth 1 https://github.com/montulli/GrooveScribe.git groovescribe
+# Editor
+.vscode/
+.idea/
+
+# Dependencies
+node_modules/
+.pnpm-store/
+__pycache__/
+*.pyc
+.venv/
+
+# Build
+dist/
+build/
+.next/
+.astro/
+out/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# 早期外連 GrooveScribe 的本機 clone（已不再使用，音檔已複製進 samples/）
 groovescribe/
