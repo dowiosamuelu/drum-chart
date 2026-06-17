@@ -1,0 +1,5 @@
+.DS_Store
+
+# 自架的 GrooveScribe 是外部依賴（有自己的 .git），不納入本專案版控
+# 若缺少，請重新取得：git clone --depth 1 https://github.com/montulli/GrooveScribe.git groovescribe
+groovescribe/

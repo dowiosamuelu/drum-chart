@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>鼓手攻略表 — 知識共享版</title>
+<style>
+  :root {
+    --bg:#ece3cf; --panel:#fbf6ea; --panel-2:#f2ead8; --line:#ddceb1;
+    --text:#3c322a; --muted:#8a7c64; --accent:#c05a3e; --accent-soft:#f6e6db;
+    --green:#6e7a3c; --blue:#5b7a8a;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,"Noto Sans TC","PingFang TC",sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; font-weight:600; }
+  header .hint { color:var(--muted); font-size:12px; }
+  .songtabs { display:flex; gap:6px; flex-wrap:wrap; margin-left:auto; }
+  .songtab { padding:5px 12px; border-radius:3px; border:1px solid var(--line); background:var(--panel); color:var(--muted); cursor:pointer; font-size:13px; }
+  .songtab.active { background:var(--accent); color:#fdf6ec; border-color:var(--accent); font-weight:600; }
+  .songtab.add { color:var(--green); }
+
+  .wrap { display:grid; grid-template-columns:1fr 1.15fr; gap:16px; padding:16px 20px; align-items:start; }
+  @media (max-width:900px){ .wrap{ grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:14px; }
+  .panel h2 { font-size:13px; margin:0 0 10px; color:var(--muted); font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
+
+  details.refvid { margin-top:16px; }
+  details.refvid > summary { font-size:13px; color:var(--muted); font-weight:600; letter-spacing:.04em; text-transform:uppercase; cursor:pointer; list-style:none; padding:4px 0; }
+  details.refvid > summary::-webkit-details-marker { display:none; }
+  details.refvid > summary::before { content:"▸ "; }
+  details.refvid[open] > summary::before { content:"▾ "; }
+  details.refvid > .videowrap { margin-top:8px; }
+  .videowrap { position:relative; padding-bottom:56.25%; height:0; border-radius:3px; overflow:hidden; background:#000; }
+  .videowrap iframe, .videowrap .placeholder { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  .placeholder { display:flex; align-items:center; justify-content:center; color:var(--muted); flex-direction:column; gap:6px; text-align:center; padding:20px; font-size:13px; }
+
+  .row { display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  input, button, textarea { font-family:inherit; font-size:13px; border-radius:3px; border:1px solid var(--line); background:var(--panel-2); color:var(--text); padding:7px 10px; }
+  input:focus, textarea:focus { outline:1px solid var(--accent); }
+  button { cursor:pointer; background:var(--panel-2); }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); color:#fdf6ec; border-color:var(--accent); font-weight:600; }
+  button.ghost { background:none; }
+  .grow { flex:1; min-width:120px; }
+  .sharebar { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px dashed var(--line); }
+  .sharebar button { font-size:12px; }
+  .author { color:var(--muted); font-size:12px; margin-top:6px; }
+  .author input { padding:3px 7px; font-size:12px; width:120px; }
+
+  ul.sections { list-style:none; margin:0; padding:0; }
+  li.section { display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; padding:9px 10px; border:1px solid var(--line); border-radius:3px; margin-bottom:7px; cursor:pointer; background:var(--panel-2); transition:border-color .15s,background .15s; }
+  li.section:hover { border-color:var(--accent); }
+  li.section.active { border-color:var(--accent); background:var(--accent-soft); }
+  .ord { display:flex; flex-direction:column; gap:2px; }
+  .ord button { padding:0 5px; font-size:10px; line-height:1.3; background:var(--panel); }
+  .seclabel { font-weight:600; }
+  .secmeta { font-size:12px; color:var(--muted); }
+  .secmeta .has { color:var(--green); }
+  .secmeta .no { color:var(--muted); }
+  .secbtns button { padding:3px 7px; font-size:11px; }
+
+  .gp-block { margin-bottom:14px; }
+  .gp-title { font-size:12px; font-weight:600; color:var(--accent); margin-bottom:6px; }
+  .gp-title.fill { color:var(--blue); }
+  .groovebox { position:relative; height:200px; border-radius:3px; overflow:hidden; background:#fff; border:1px solid var(--line); }
+  .groovebox iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  .groove-bar { display:flex; gap:12px; align-items:center; margin-top:6px; }
+  .groove-link { font-size:12px; color:var(--accent); cursor:pointer; background:none; border:none; padding:0; }
+  .empty { padding:26px; text-align:center; color:var(--muted); background:var(--panel-2); border-radius:3px; font-size:13px; }
+  .note { font-size:13px; color:var(--text); background:var(--panel-2); border-radius:3px; padding:8px 10px; margin-bottom:12px; border-left:3px solid var(--accent); }
+
+  dialog { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:5px; padding:18px; width:min(460px,92vw); }
+  dialog::backdrop { background:rgba(0,0,0,.6); }
+  dialog h3 { margin:0 0 12px; font-size:15px; }
+  dialog label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  dialog input, dialog textarea { width:100%; }
+  dialog .dlg-btns { display:flex; justify-content:space-between; margin-top:16px; gap:8px; }
+  .tip { font-size:11px; color:var(--muted); margin-top:4px; }
+  a { color:var(--accent); }
+
+  #lightbox { width:96vw; height:92vh; max-width:none; padding:0; background:#fff; border:none; }
+  #lightbox::backdrop { background:rgba(0,0,0,.8); }
+  #lightbox iframe { width:100%; height:100%; border:0; }
+  #lightbox .lb-close { position:absolute; top:10px; right:14px; z-index:2; background:#181b22; color:#fff; border:0; border-radius:3px; padding:6px 12px; cursor:pointer; }
+</style>
+</head>
+<body>
+<header>
+  <h1>鼓手攻略表</h1>
+  <span class="hint">按曲序排段落 · 每段標節奏＋過門 · 分享給其他鼓手 · 做自己的版本</span>
+  <div class="songtabs" id="songtabs"></div>
+</header>
+
+<div class="wrap">
+  <!-- 左：歌曲資訊 + 參考影片 + 分享 -->
+  <div class="panel">
+    <h2>歌曲</h2>
+    <div class="row">
+      <input class="grow" id="songName" placeholder="歌名" />
+      <button id="renameSong">改名</button>
+      <button id="delSong">刪除</button>
+    </div>
+    <div class="author">編輯者：<input id="author" placeholder="你的名字" /></div>
+
+    <details id="refvid" class="refvid">
+      <summary>參考影片（選配）</summary>
+      <div class="videowrap" id="videowrap"><div class="placeholder">貼 YouTube 連結可當參考<br>（現場曲速可能不同，僅供聽 feel）</div></div>
+      <div class="row">
+        <input class="grow" id="ytUrl" placeholder="YouTube 連結（選填）" />
+        <button id="loadYt">載入</button>
+      </div>
+    </details>
+
+    <div class="sharebar">
+      <button class="primary" id="exportJson">匯出這首</button>
+      <button id="exportAll">匯出全部</button>
+      <button id="importJson">匯入檔案</button>
+      <button id="fork">做我自己的版本</button>
+      <input type="file" id="fileInput" accept="application/json" style="display:none" />
+    </div>
+    <div class="tip">分享方式：「匯出這首／全部」存成 .json 檔傳給其他鼓手，對方按「匯入檔案」就能看＆聽，再按「做我自己的版本」改成他的。</div>
+  </div>
+
+  <!-- 右：曲序 + 節奏/過門 -->
+  <div class="panel">
+    <h2>曲序 → 節奏 / 過門</h2>
+    <ul class="sections" id="sections"></ul>
+    <div class="row"><button class="primary grow" id="addSection">＋ 新增段落</button></div>
+
+    <h2 style="margin-top:18px;">這段怎麼打</h2>
+    <div id="grooveSlot"><div class="empty">點上面任一段落，這裡會顯示它的節奏與過門</div></div>
+  </div>
+</div>
+
+<!-- 放大檢視 -->
+<dialog id="lightbox">
+  <button class="lb-close" id="lbClose">✕ 關閉</button>
+  <iframe id="lbFrame" src="" allow="autoplay"></iframe>
+</dialog>
+
+<!-- 段落編輯彈窗 -->
+<dialog id="secDialog">
+  <h3 id="secDlgTitle">新增段落</h3>
+  <label>段落名稱（Intro / Verse 1 / Verse 2 / 副歌 / Bridge…）</label>
+  <input id="secLabel" placeholder="Verse 1" />
+  <label>節奏 groove 連結（在 GrooveScribe 編好後貼整段網址）</label>
+  <input id="secGroove" placeholder="貼 GrooveScribe 連結" />
+  <label>過門 fill 連結（選填，進下一段的過門）</label>
+  <input id="secFill" placeholder="貼 GrooveScribe 連結" />
+  <label>備註（選填，例如「副歌前漸強」「鈸收尾」）</label>
+  <textarea id="secNote" rows="2" placeholder="想提醒自己或別人的事"></textarea>
+  <div class="tip"><a href="groovescribe/index.html" target="_blank">開自架 GrooveScribe 編輯 ↗</a>　編好後複製網址列整段貼回來</div>
+  <div class="dlg-btns">
+    <button id="secDelete" style="color:#ff7a7a;">刪除</button>
+    <div><button id="secCancel">取消</button> <button class="primary" id="secSave">儲存</button></div>
+  </div>
+</dialog>
+
+<script>
+// ---------- 預設資料 ----------
+const SAMPLE = "Mode=view&TimeSig=4/4&Div=16&Tempo=80&Measures=1&H=|x-x-x-x-x-x-x-x-|&S=|----O-------O---|&K=|o-------o-------|";
+const FILLSAMPLE = "Mode=view&TimeSig=4/4&Div=16&Tempo=80&Measures=1&H=|----------------|&S=|o-o-oo-oo-o-oOo-|&K=|o-------o-------|";
+const defaultData = {
+  currentId:"s1",
+  me:"",
+  songs:[{
+    id:"s1", name:"範例：把這首改成你的歌", author:"", ytUrl:"", videoId:"",
+    sections:[
+      { id:"a", label:"Intro",   groove:SAMPLE, fill:"", note:"輕進，hi-hat 為主" },
+      { id:"b", label:"Verse 1", groove:SAMPLE, fill:"", note:"" },
+      { id:"c", label:"Verse 2", groove:SAMPLE, fill:FILLSAMPLE, note:"末尾過門推進副歌" },
+      { id:"d", label:"副歌",     groove:"", fill:"", note:"開 ride，力度上來" },
+      { id:"e", label:"Bridge",  groove:"", fill:"", note:"留白" },
+    ]
+  }]
+};
+
+// ---------- 儲存 ----------
+let data = load();
+function load(){ try{ const d=JSON.parse(localStorage.getItem("drumchart_v2")); if(d&&d.songs) return d; }catch(e){} return structuredClone(defaultData); }
+function save(){ localStorage.setItem("drumchart_v2", JSON.stringify(data)); }
+function curSong(){ return data.songs.find(s=>s.id===data.currentId) || data.songs[0]; }
+function uid(){ return Math.random().toString(36).slice(2,8); }
+function escapeHtml(s){ return String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+// ---------- GrooveScribe 連結轉換（走自架精簡頁） ----------
+function grooveQuery(url){ if(!url) return ""; const i=url.indexOf("?"); let q=i>=0?url.slice(i+1):url; return q.split("#")[0]; }
+function grooveEmbedSrc(url){ const q=grooveQuery(url); return q?"groovescribe/GrooveEmbed.html?"+q:""; }
+function grooveEditorSrc(url){ const q=grooveQuery(url); return "groovescribe/index.html"+(q?"?"+q:""); }
+
+// ---------- YouTube ----------
+let player=null, apiReady=false, pendingVideo=null;
+const tag=document.createElement("script"); tag.src="https://www.youtube.com/iframe_api"; document.head.appendChild(tag);
+window.onYouTubeIframeAPIReady=()=>{ apiReady=true; if(pendingVideo) mountPlayer(pendingVideo); };
+function mountPlayer(videoId){ if(!apiReady){ pendingVideo=videoId; return; } document.getElementById("videowrap").innerHTML='<div id="ytplayer"></div>'; player=new YT.Player("ytplayer",{ videoId, playerVars:{rel:0,modestbranding:1} }); }
+function ytId(url){ const m=String(url).match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]{11})/); return m?m[1]:(String(url).length===11?url:""); }
+
+// ---------- 匯出入 payload ----------
+function songPayload(s){ return { name:s.name, author:s.author, ytUrl:s.ytUrl, videoId:s.videoId, sections:s.sections }; }
+function importSong(payload, suffix){
+  const s={ id:uid(), name:(payload.name||"未命名")+(suffix||""), author:payload.author||"", ytUrl:payload.ytUrl||"", videoId:payload.videoId||"",
+    sections:(payload.sections||[]).map(x=>({ id:uid(), label:x.label||"段落", groove:x.groove||"", fill:x.fill||"", note:x.note||"" })) };
+  data.songs.push(s); data.currentId=s.id; activeId=null; save(); renderAll();
+}
+function downloadJson(obj, filename){
+  const blob=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=filename; a.click();
+}
+
+// ---------- 渲染 ----------
+let activeId=null;
+
+function renderTabs(){
+  const el=document.getElementById("songtabs"); el.innerHTML="";
+  data.songs.forEach(s=>{ const b=document.createElement("button"); b.className="songtab"+(s.id===data.currentId?" active":""); b.textContent=s.name;
+    b.onclick=()=>{ data.currentId=s.id; activeId=null; save(); renderAll(); }; el.appendChild(b); });
+  const add=document.createElement("button"); add.className="songtab add"; add.textContent="＋ 新增歌曲";
+  add.onclick=()=>{ const s={id:uid(),name:"新歌曲",author:data.me||"",ytUrl:"",videoId:"",sections:[]}; data.songs.push(s); data.currentId=s.id; activeId=null; save(); renderAll(); };
+  el.appendChild(add);
+}
+
+let pendingRef="";
+function resetVideoWrap(){ document.getElementById("videowrap").innerHTML='<div class="placeholder">貼 YouTube 連結可當參考<br>（現場曲速可能不同，僅供聽 feel）</div>'; player=null; }
+function maybeMountRef(){ const det=document.getElementById("refvid"); if(det.open && pendingRef && !player) mountPlayer(pendingRef); }
+function renderSong(){
+  const s=curSong();
+  document.getElementById("songName").value=s.name||"";
+  document.getElementById("author").value=s.author||data.me||"";
+  document.getElementById("ytUrl").value=s.ytUrl||"";
+  pendingRef=s.videoId||""; resetVideoWrap(); maybeMountRef();
+}
+
+function renderSections(){
+  const ul=document.getElementById("sections"); ul.innerHTML="";
+  const secs=curSong().sections;
+  if(!secs.length){ ul.innerHTML='<li style="color:var(--muted);list-style:none;padding:6px;">還沒有段落，按下面「新增段落」</li>'; return; }
+  secs.forEach((sec,idx)=>{
+    const li=document.createElement("li"); li.className="section"+(sec.id===activeId?" active":"");
+    li.innerHTML=`<span class="ord">
+        <button data-up="${idx}" ${idx===0?"disabled":""}>▲</button>
+        <button data-down="${idx}" ${idx===secs.length-1?"disabled":""}>▼</button>
+      </span>
+      <span><span class="seclabel">${escapeHtml(sec.label)}</span><br>
+        <span class="secmeta"><span class="${sec.groove?"has":"no"}">節奏${sec.groove?"✓":"—"}</span> · <span class="${sec.fill?"has":"no"}">過門${sec.fill?"✓":"—"}</span>${sec.note?" · 備註":""}</span></span>
+      <span class="secbtns"><button data-edit="${sec.id}">編輯</button></span>`;
+    li.onclick=(e)=>{ if(e.target.dataset.edit!==undefined||e.target.dataset.up!==undefined||e.target.dataset.down!==undefined) return; selectSection(sec.id); };
+    li.querySelector("[data-edit]").onclick=(e)=>{ e.stopPropagation(); openSecDialog(sec.id); };
+    li.querySelector("[data-up]").onclick=(e)=>{ e.stopPropagation(); move(idx,-1); };
+    li.querySelector("[data-down]").onclick=(e)=>{ e.stopPropagation(); move(idx,1); };
+    ul.appendChild(li);
+  });
+}
+function move(idx,dir){ const a=curSong().sections; const j=idx+dir; if(j<0||j>=a.length) return; [a[idx],a[j]]=[a[j],a[idx]]; save(); renderSections(); }
+
+function grooveBlock(title, cls, url){
+  const embed=grooveEmbedSrc(url);
+  return `<div class="gp-block">
+    <div class="gp-title ${cls}">${title}</div>
+    <div class="groovebox"><iframe src="${embed}" allow="autoplay" data-src="${embed}"></iframe></div>
+    <div class="groove-bar">
+      <button class="groove-link" data-zoom="${embed}">放大</button>
+      <a class="groove-link" href="${grooveEditorSrc(url)}" target="_blank">編輯 ↗</a>
+    </div></div>`;
+}
+function selectSection(id){
+  activeId=id; const sec=curSong().sections.find(x=>x.id===id); if(!sec) return;
+  const slot=document.getElementById("grooveSlot"); let html="";
+  if(sec.note) html+=`<div class="note">備註：${escapeHtml(sec.note)}</div>`;
+  if(sec.groove) html+=grooveBlock("節奏 GROOVE","", sec.groove);
+  if(sec.fill) html+=grooveBlock("過門 FILL","fill", sec.fill);
+  if(!sec.groove && !sec.fill && !sec.note) html='<div class="empty">這段還沒填節奏／過門。按段落的「編輯」貼上 GrooveScribe 連結。</div>';
+  slot.innerHTML=html;
+  slot.querySelectorAll("[data-zoom]").forEach(b=>b.onclick=()=>{ document.getElementById("lbFrame").src=b.dataset.zoom; document.getElementById("lightbox").showModal(); });
+  renderSections();
+}
+
+function renderAll(){ renderTabs(); renderSong(); renderSections();
+  document.getElementById("grooveSlot").innerHTML='<div class="empty">點上面任一段落，這裡會顯示它的節奏與過門</div>'; }
+
+// ---------- 段落彈窗 ----------
+let editingSecId=null;
+function openSecDialog(id){
+  editingSecId=id; const sec=id?curSong().sections.find(x=>x.id===id):null;
+  document.getElementById("secDlgTitle").textContent=id?"編輯段落":"新增段落";
+  document.getElementById("secLabel").value=sec?sec.label:"";
+  document.getElementById("secGroove").value=sec?sec.groove:"";
+  document.getElementById("secFill").value=sec?sec.fill:"";
+  document.getElementById("secNote").value=sec?(sec.note||""):"";
+  document.getElementById("secDelete").style.display=id?"":"none";
+  document.getElementById("secDialog").showModal();
+}
+document.getElementById("addSection").onclick=()=>openSecDialog(null);
+document.getElementById("secCancel").onclick=()=>document.getElementById("secDialog").close();
+document.getElementById("secSave").onclick=()=>{
+  const v={ label:document.getElementById("secLabel").value.trim()||"段落",
+    groove:document.getElementById("secGroove").value.trim(),
+    fill:document.getElementById("secFill").value.trim(),
+    note:document.getElementById("secNote").value.trim() };
+  const s=curSong();
+  if(editingSecId){ Object.assign(s.sections.find(x=>x.id===editingSecId), v); }
+  else { s.sections.push({ id:uid(), ...v }); }
+  save(); document.getElementById("secDialog").close(); renderSections();
+  if(editingSecId===activeId) selectSection(activeId);
+};
+document.getElementById("secDelete").onclick=()=>{
+  const s=curSong(); s.sections=s.sections.filter(x=>x.id!==editingSecId);
+  if(activeId===editingSecId) activeId=null;
+  save(); document.getElementById("secDialog").close(); renderAll();
+};
+
+// ---------- 放大 ----------
+document.getElementById("lbClose").onclick=()=>{ const lb=document.getElementById("lightbox"); lb.close(); document.getElementById("lbFrame").src=""; };
+
+// ---------- 左側控制 ----------
+document.getElementById("loadYt").onclick=()=>{ const url=document.getElementById("ytUrl").value.trim(); const id=ytId(url); const s=curSong(); s.ytUrl=url; s.videoId=id; save(); if(id){ pendingRef=id; resetVideoWrap(); document.getElementById("refvid").open=true; maybeMountRef(); } else alert("看不出 YouTube 影片 ID"); };
+document.getElementById("refvid").addEventListener("toggle", maybeMountRef);
+document.getElementById("renameSong").onclick=()=>{ const n=document.getElementById("songName").value.trim(); if(n){ curSong().name=n; save(); renderTabs(); } };
+document.getElementById("author").onchange=(e)=>{ curSong().author=e.target.value.trim(); data.me=e.target.value.trim(); save(); };
+document.getElementById("delSong").onclick=()=>{ if(data.songs.length<=1){ alert("至少留一首"); return; } if(!confirm("刪除這首？")) return; data.songs=data.songs.filter(s=>s.id!==data.currentId); data.currentId=data.songs[0].id; activeId=null; save(); renderAll(); };
+
+// ---------- fork / 匯出入 ----------
+document.getElementById("fork").onclick=()=>{ importSong(songPayload(curSong()), "（我的版本）"); };
+document.getElementById("exportJson").onclick=()=>{ downloadJson(songPayload(curSong()), (curSong().name||"chart")+".json"); };
+document.getElementById("exportAll").onclick=()=>{ downloadJson({ type:"drumchart-set", songs:data.songs.map(songPayload) }, "本週歌單.json"); };
+document.getElementById("importJson").onclick=()=>document.getElementById("fileInput").click();
+document.getElementById("fileInput").onchange=(e)=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{
+    const obj=JSON.parse(r.result);
+    if(Array.isArray(obj.songs)){ obj.songs.forEach(p=>importSong(p)); alert("已匯入 "+obj.songs.length+" 首"); }
+    else if(Array.isArray(obj.sections)){ importSong(obj); }
+    else { alert("檔案讀不到攻略表格式"); }
+  }catch(err){ alert("檔案讀不到攻略表格式"); } };
+  r.readAsText(f); e.target.value="";
+};
+
+renderAll();
+</script>
+</body>
+</html>
