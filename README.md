@@ -73,4 +73,12 @@ python3 -m http.server 8777
 
 `samples/` 的鼓組取樣取自開源專案
 [GrooveScribe](https://github.com/montulli/GrooveScribe)（`soundfont/NewDrumSamples`），
-已重新命名複製進本專案。若日後要公開發布，請確認其授權。
+版權 © 2015 Lou Montulli and Mike Johnston，授權為 GPLv2。
+音檔已重新命名以對應本專案軌道，音訊內容未更動。詳見 [NOTICE](NOTICE)。
+
+---
+
+## 授權
+
+本專案依 **GNU General Public License v2（GPLv2）** 散布，詳見 [LICENSE](LICENSE)。
+（採 GPLv2 是為了與上述鼓組取樣的授權相容。）
