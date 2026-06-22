@@ -10,10 +10,20 @@
 
 ## 怎麼啟動
 
-純前端的單檔網頁，但**不能直接雙擊開**（`file://` 會讓 YouTube 出錯，且讀不到 `samples/`）。
+### 最快：直接開網址
+
+線上版（GitHub Pages）：**https://dowiosamuelu.github.io/drum-chart/**
+
+打開就能用，免安裝。分享給其他鼓手用這個最方便。
+（資料存在各自瀏覽器的 localStorage，攻略還是靠匯出/匯入 JSON 互傳——見下方〈怎麼分享〉。）
+
+### 本機跑（要改程式碼或離線時）
+
+純前端的單檔網頁，但**不能直接雙擊開**（`file://` 會讓 YouTube 出錯，且讀不到 `samples/`），
 用一個本機小伺服器：
 
 ```bash
+git clone https://github.com/dowiosamuelu/drum-chart.git
 cd drum-chart
 python3 -m http.server 8777
 ```
