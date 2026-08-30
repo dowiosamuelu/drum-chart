@@ -33,7 +33,8 @@ global.fetch=(u)=>{ if(String(u).includes('library.json')){
 const EXPORTS='{data,filt,cardById,childrenOf,matches,encCard,decCard,songPayload,importSong,mergeCards,'+
   'renderGallery,renderBrowse,renderWall,renderSections,renderPicker,miniGridHtml,cardHtml,LANES,MAX_PER_SECTION,'+
   'defaultAxis,filtering,TAG_GROUPS,ALL_TAGS,fromV3,migrate,normCard,defaultData,syncLibrary,mergeLibrary,'+
-  'receiveCard,takePastedLink,readOnly,publishSet,cardPayload,picking}';
+  'receiveCard,takePastedLink,readOnly,publishSet,cardPayload,picking,mergedBar,phrase,isFav,toggleFav,'+
+  'cellGlyph,cycle,LANE_KEYS,SAMPLE_FILES,emptyPattern}';
 function boot(){ store={}; return new Function('return (function(){ '+body+'\n; return '+EXPORTS+'; })()')(); }
 
 const A=(c,m)=>{ if(!c) throw new Error('FAIL: '+m); console.log('ok -',m); };
@@ -42,7 +43,10 @@ const box=()=>({ innerHTML:'', querySelectorAll(){ return []; } });
 (async()=>{
 // ---------- library.json 本身 ----------
 A(LIB.type==='drumchart-library'&&LIB.version>=1,'library.json 有 type 與 version');
-A(LIB.patterns.length===26,'library.json 有 '+LIB.patterns.length+' 張卡');
+A(LIB.patterns.length>=26,'library.json 有 '+LIB.patterns.length+' 張卡');
+A(LIB.patterns.every(c=>!c.parent||LIB.patterns.some(x=>x.id===c.parent)),'每個變體的父卡都在庫裡');
+A(LIB.patterns.every(c=>!c.parent||!LIB.patterns.find(x=>x.id===c.parent).parent),'家族只有一層');
+A(new Set(LIB.patterns.map(c=>c.id)).size===LIB.patterns.length,'沒有重複的 id');
 A(LIB.patterns.every(c=>c.tags.every(t=>true))&&LIB.patterns.every(c=>c.pattern&&c.pattern.ri.length===16),'每張卡的 pattern 結構正確');
 A(!/seedCards/.test(src),'index.html 裡不再內嵌官方庫內容');
 
@@ -51,7 +55,7 @@ let M=boot();
 A(M.data.patterns.length===0,'還沒同步前本地是空的（內容不在程式裡）');
 A(M.data.songs[0].sections[1].grooveRef==='g8','官方庫還沒載入，範例歌的引用仍然保留（不被誤殺）');
 await M.syncLibrary();
-A(M.data.patterns.length===26,'同步後載入 26 張');
+A(M.data.patterns.length===LIB.patterns.length,'同步後載入 '+M.data.patterns.length+' 張');
 A(M.data.patterns.every(c=>c.official),'載入的卡都標成官方');
 A(M.data.libVersion===LIB.version,'記下官方庫版本 v'+M.data.libVersion);
 A(M.cardById('g8')&&M.cardById('gcr'),'範例歌引用的卡都對得上了');
@@ -65,7 +69,7 @@ M.data.admin=false;
 // ---------- 重複同步不會長出東西 ----------
 const before=M.data.patterns.length;
 let r=M.mergeLibrary(LIB);
-A(M.data.patterns.length===before&&r.added===0&&r.updated===26,'同一版重複合併：新增 0、更新 26，不會重複');
+A(M.data.patterns.length===before&&r.added===0&&r.updated===LIB.patterns.length,'同一版重複合併：新增 0、更新 '+r.updated+'，不會重複');
 
 // ---------- 個人卡不受合併影響 ----------
 const mine={ id:'mine1', name:'我的私房打法', kind:'groove', tags:['慢歌'], parent:null, note:'', author:'我',
@@ -144,6 +148,46 @@ const css=src;
 A(/--bg:#f7f7f5/.test(css)&&!/#fdf6ec|#ece3cf/.test(css),'Linear／Notion 色票，舊色碼沒有回流');
 A(/\.mini \{[^}]*overflow-y:hidden/.test(css),'小譜的捲軸還是關著');
 A(/\.varlist \{[^}]*border-left/.test(css),'家族的共用左側軌還在');
+
+
+// ---------- 新軌：crash 與 rimclick ----------
+A(M.LANE_KEYS.join()==='cr,ri,oh,hh,tm,sn,kk','七軌，crash 排在最上面');
+A(M.SAMPLE_FILES.crash==='crash.mp3'&&M.SAMPLE_FILES.rimclick==='rimclick.mp3','新取樣有掛進來');
+A(fs.existsSync(path.join(ROOT,'samples/crash.mp3'))&&fs.existsSync(path.join(ROOT,'samples/rimclick.mp3')),'兩個 mp3 檔真的在 samples/');
+A(M.cycle('sn',0)===1&&M.cycle('sn',1)===2&&M.cycle('sn',2)===3&&M.cycle('sn',3)===0,'小鼓連點：重音→ghost→rimclick→空白');
+A(M.cellGlyph('sn',3)==='◇'&&M.cellGlyph('cr',1)==='⊗','rimclick 與 crash 有自己的符號');
+A(M.emptyPattern().cr.length===16,'空白 pattern 有 cr 軌');
+A(LIB.patterns.every(c=>Array.isArray(c.pattern.cr)),'library.json 每張卡都有 cr 軌');
+A(!LIB.patterns.some(c=>c.id==='g8s'),'重複的「8 beat 十六分踩鈸」已併進「16 beat 基本」');
+A(LIB.patterns.find(c=>c.id==='gbalrim').pattern.sn.includes(3),'抒情 rimclick 那張真的用了 rimclick');
+A(LIB.patterns.find(c=>c.id==='gcrcrash').pattern.cr[0]===1,'進場 crash 那張第一拍是 crash');
+
+// ---------- 過門接在節奏後面 ----------
+const g=M.cardById('g8'), f1=M.cardById('f1');           // f1 只佔最後一拍
+const mb=M.mergedBar(g.pattern,f1.pattern);
+A(mb.hh[0]===g.pattern.hh[0]&&mb.kk[0]===g.pattern.kk[0],'過門空著的格子繼續走節奏');
+A(mb.tm[15]===f1.pattern.tm[15],'過門有東西的格子換成過門');
+A(mb.hh[12]===0&&f1.pattern.tm[12]!==0,'過門有東西的那一格，節奏整排讓位（踩鈸不會疊上來）');
+A(M.phrase(g.pattern,null).length===1,'沒選過門就是單純 loop 節奏');
+const ph=M.phrase(g.pattern,f1.pattern);
+A(ph.length===2&&ph[0].p===g.pattern&&ph[1].p!==f1.pattern,'加了過門：第一小節純節奏，第二小節是節奏＋過門');
+A(M.LANE_KEYS.every(k=>ph[1].p[k].length===16),'合出來的小節是完整的 pattern');
+
+// ---------- 收藏 ----------
+M.data.favs=[];
+A(!M.isFav('g8'),'預設沒有收藏');
+M.toggleFav('g8');
+A(M.isFav('g8')&&M.data.favs.length===1,'收藏存在 data.favs（只存 id）');
+M.filt.kind='groove'; M.filt.q=''; M.filt.tags=[]; M.filt.fav=true;
+A(M.filtering(),'只看收藏也算篩選，會切到平鋪結果牆');
+const favBox=box(); const nf=M.renderWall(favBox);
+A(favBox.innerHTML.includes('data-card="g8"'),'只看收藏時收藏的卡有出現');
+A(!favBox.innerHTML.includes('data-card="ght"'),'沒收藏的卡被濾掉');
+M.mergeLibrary(LIB);
+A(M.isFav('g8'),'收藏在合併官方庫之後還在（只存 id，跟卡片內容無關）');
+M.toggleFav('g8'); M.filt.fav=false;
+A(!M.isFav('g8')&&!M.filtering(),'再按一次取消收藏');
+A(M.defaultAxis('fill')==='speed','過門改用「速度感」分區（適用段落對過門語意不清）');
 
 console.log('\n全部通過');
 })().catch(e=>{ console.error('\n'+e.message); process.exit(1); });

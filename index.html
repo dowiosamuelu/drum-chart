@@ -114,6 +114,13 @@
   @media (hover:none){ .dbtns { opacity:1; } }
   .pickerlist .dbtns { opacity:1; }
   .dbtns button { padding:2px 8px; font-size:11px; }
+  /* 收藏：收藏過的一直看得到，沒收藏的滑上去才出現 */
+  .fav { border:0; background:transparent; color:var(--beat); font-size:14px; line-height:1;
+         padding:2px 4px; flex-shrink:0; opacity:0; transition:opacity .12s; }
+  .fav:hover { background:var(--hover); }
+  .dcard:hover .fav { opacity:1; }
+  .fav.on { opacity:1; color:var(--danger); }
+  @media (hover:none){ .fav { opacity:1; } }
   /* 標籤退成一行小字：pill 太重，而且會跟側欄「可點的篩選 pill」搞混 */
   .dmeta, .dnote { font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .dmeta { margin-top:2px; }
@@ -127,6 +134,7 @@
   .mc { height:14px; display:flex; align-items:center; justify-content:center; font-size:11px; line-height:1; color:var(--text); }
   .mc.beat, .mn.beat { border-left:1px solid var(--faint); }
   .mc.c-hh, .mc.c-ri, .mc.c-oh { color:#b4b2ac; }
+  .mc.c-cr { color:var(--accent); }
   .mc.c-sn, .mc.c-kk { color:var(--text); }
   .mc.ghost { color:#c8c6c0; font-size:10px; }
   .mc.c-tm { color:var(--green); font-size:10px; font-weight:600; }
@@ -181,6 +189,7 @@
   .cell.beat { box-shadow:inset 2px 0 0 var(--accent-soft); }
   .cell.ghost { color:var(--muted); font-size:12px; }
   .cell.c-ri, .cell.c-oh { color:var(--blue); }
+  .cell.c-cr { color:var(--accent); }
   .cell.c-tm { color:var(--green); font-size:12px; font-weight:600; }
   .legend { font-size:11px; color:var(--muted); margin-top:6px; }
   .empty { padding:26px; text-align:center; color:var(--muted); background:var(--panel-2); border-radius:6px; font-size:13px; }
@@ -224,6 +233,7 @@
       <button data-kind="fill">過門</button>
     </div>
     <div class="row"><input class="grow" id="searchBox" placeholder="搜尋名稱或備註" /></div>
+    <label class="admrow" style="margin-top:8px"><input type="checkbox" id="favOnly" /> 只看收藏 ♥</label>
     <div id="filters"></div>
     <div class="row">
       <button id="clearFilt">清除篩選</button>
@@ -330,12 +340,13 @@
 
 <script>
 // ---------- 鼓譜資料格式 ----------
-// pattern = { tempo, ri[16], oh[16], hh[16], tm[16], sn[16], kk[16] }
-// 軌：ri=ride, oh=open hi-hat, hh=closed hi-hat, tm=tom(1=H 2=M 3=L), sn=snare(1=重音 2=ghost), kk=kick
+// pattern = { tempo, cr[16], ri[16], oh[16], hh[16], tm[16], sn[16], kk[16] }
+// 軌：cr=crash, ri=ride, oh=open hi-hat, hh=closed hi-hat, tm=tom(1=H 2=M 3=L),
+//     sn=snare(1=重音 2=ghost 3=rimclick／cross-stick), kk=kick
 // card = { id, name, kind:"groove"|"fill", tags[], parent, note, author, pattern }
-const LANE_KEYS=["ri","oh","hh","tm","sn","kk"];
+const LANE_KEYS=["cr","ri","oh","hh","tm","sn","kk"];
 function z(){ return Array(16).fill(0); }
-function emptyPattern(){ return { tempo:90, ri:z(), oh:z(), hh:z(), tm:z(), sn:z(), kk:z() }; }
+function emptyPattern(){ return { tempo:90, cr:z(), ri:z(), oh:z(), hh:z(), tm:z(), sn:z(), kk:z() }; }
 // 用字串寫譜比陣列好讀："1010101010101010"
 function P(str){ const a=z(), s=String(str).replace(/\s/g,""); for(let i=0;i<16;i++) a[i]=(+s[i])||0; return a; }
 function mkPat(tempo,obj){ const p=emptyPattern(); p.tempo=tempo; for(const k in obj) p[k]=P(obj[k]); return p; }
@@ -355,7 +366,7 @@ const ALL_TAGS=TAG_GROUPS.flatMap(g=>g.tags);
 const LIB_URL="library.json";
 
 function defaultData(){ return {
-  v:4, me:"", currentId:"s1", patterns:[], libVersion:0, inbox:[], admin:false,
+  v:4, me:"", currentId:"s1", patterns:[], libVersion:0, inbox:[], admin:false, favs:[],
   songs:[{ id:"s1", name:"範例：把這首改成你的歌", author:"", ytUrl:"", videoId:"",
     sections:[
       { id:"a", label:"Intro",   note:"留空間給主領起頭", grooveRef:"gintro", fillRef:null },
@@ -392,6 +403,7 @@ function migrate(d){
   if(!d.songs.length) d.songs=defaultData().songs;
   if(!d.songs.some(s=>s.id===d.currentId)) d.currentId=d.songs[0].id;
   d.libVersion=d.libVersion||0;
+  d.favs=Array.isArray(d.favs)?d.favs.filter(x=>typeof x==="string"):[];
   d.inbox=(Array.isArray(d.inbox)?d.inbox:[]).map(x=>({ card:normCard(x.card||x), from:(x.from||""), at:(x.at||"") }));
   d.admin=!!d.admin;
   d.v=4; return d;
@@ -465,17 +477,20 @@ function childrenOf(id){ return data.patterns.filter(c=>c.parent===id); }
 function familyOf(c){ const rootId=c.parent||c.id, root=cardById(rootId);
   return (root?[root]:[]).concat(childrenOf(rootId)).filter(x=>x.id!==c.id); }
 function curSong(){ return data.songs.find(s=>s.id===data.currentId)||data.songs[0]; }
+// 收藏只存 id，跟卡片內容無關，所以合併官方庫不會影響它
+function isFav(id){ return data.favs.includes(id); }
+function toggleFav(id){ data.favs = isFav(id) ? data.favs.filter(x=>x!==id) : data.favs.concat(id); save(); }
 
 // ---------- Web Audio 鼓聲 ----------
 // 使用 GrooveScribe 的真鼓取樣
 let actx=null;
 function AC(){ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); return actx; }
 const SAMPLE_DIR="samples/";
-const SAMPLE_FILES={ kick:"kick.mp3", snare:"snare.mp3", ghost:"ghost.mp3",
-  hatClosed:"hat-closed.mp3", hatOpen:"hat-open.mp3", ride:"ride.mp3",
+const SAMPLE_FILES={ kick:"kick.mp3", snare:"snare.mp3", ghost:"ghost.mp3", rimclick:"rimclick.mp3",
+  hatClosed:"hat-closed.mp3", hatOpen:"hat-open.mp3", ride:"ride.mp3", crash:"crash.mp3",
   tomH:"tom-h.mp3", tomM:"tom-m.mp3", tomL:"tom-l.mp3" };
 const buffers={}; let samplesReady=false;
-const GAINS={ hatOpen:0.5 }; // 各鼓件音量微調（open hi-hat 偏大，壓小）
+const GAINS={ hatOpen:0.5, crash:0.7 }; // 各鼓件音量微調（open hi-hat 與 crash 偏大，壓小）
 async function loadSamples(){ const c=AC();
   await Promise.all(Object.entries(SAMPLE_FILES).map(async([k,f])=>{ try{
     const res=await fetch(encodeURI(SAMPLE_DIR+f)); const ab=await res.arrayBuffer();
@@ -490,11 +505,12 @@ function playBuf(key,t,gain){ const b=buffers[key]; if(!b) return; const c=AC();
 // 播放器：一串 {p:pattern, bars:n}，循環。A/B 比較就是塞兩段進去。
 let trans={ timer:null, seq:null, idx:0, step:0, nextTime:0, btn:null, tempo:90 };
 function fireStep(p,s,t){
+  if(p.cr[s]) playBuf("crash",t);
   if(p.ri[s]) playBuf("ride",t);
   if(p.oh[s]) playBuf("hatOpen",t);
   if(p.hh[s]) playBuf("hatClosed",t);
   if(p.tm[s]) playBuf(p.tm[s]===1?"tomH":p.tm[s]===2?"tomM":"tomL",t);
-  if(p.sn[s]===1) playBuf("snare",t); else if(p.sn[s]===2) playBuf("ghost",t);
+  if(p.sn[s]===1) playBuf("snare",t); else if(p.sn[s]===2) playBuf("ghost",t); else if(p.sn[s]===3) playBuf("rimclick",t);
   if(p.kk[s]) playBuf("kick",t);
 }
 function stopTransport(){ if(trans.timer){ clearInterval(trans.timer); trans.timer=null; }
@@ -519,6 +535,18 @@ function playSeq(items, btn, tempo){
   }, 25);
 }
 function playToggle(pattern, btn){ playSeq([{p:pattern,bars:1}], btn, pattern.tempo); }
+// 過門疊在節奏上：某一格只要過門有東西，那一格整排就換成過門（節奏讓位）；
+// 過門空著的格子就繼續走節奏。所以只佔最後一拍的過門＝前三拍節奏、第四拍過門。
+function mergedBar(g,f){
+  const o=emptyPattern(); o.tempo=g.tempo;
+  for(let s=0;s<16;s++){
+    const src = LANE_KEYS.some(k=>f[k][s]) ? f : g;
+    LANE_KEYS.forEach(k=>o[k][s]=src[k][s]);
+  }
+  return o;
+}
+// 一個樂句：節奏一小節，接一小節「節奏＋過門」，循環
+function phrase(g,f){ return f ? [{p:g,bars:1},{p:mergedBar(g,f),bars:1}] : [{p:g,bars:1}]; }
 
 // ---------- YouTube（選配參考） ----------
 let player=null, apiReady=false, pendingApi=null, pendingRef="";
@@ -530,16 +558,17 @@ function resetVideoWrap(){ document.getElementById("videowrap").innerHTML='<div 
 function maybeMountRef(){ const det=document.getElementById("refvid"); if(det.open && pendingRef && !player) mountPlayer(pendingRef); }
 
 // ---------- 譜的畫法 ----------
-const LANES=[["ri","Ride"],["oh","Open HH"],["hh","Hi-hat"],["tm","Tom"],["sn","Snare"],["kk","Kick"]];
+const LANES=[["cr","Crash"],["ri","Ride"],["oh","Open HH"],["hh","Hi-hat"],["tm","Tom"],["sn","Snare"],["kk","Kick"]];
 function cellGlyph(lane,v){ if(v===0) return "";
   if(lane==="ri"||lane==="hh") return "×";
+  if(lane==="cr") return "⊗";
   if(lane==="oh") return "○";
   if(lane==="tm") return v===1?"H":v===2?"M":"L";
-  if(lane==="sn") return v===1?"●":"○";
+  if(lane==="sn") return v===1?"●":v===2?"○":"◇";   // ◇ = rimclick／cross-stick
   if(lane==="kk") return "●";
   return ""; }
 function cellMods(lane,v,s){ return " c-"+lane+(v?" on":"")+(lane==="sn"&&v===2?" ghost":"")+(s%4===0?" beat":""); }
-function cycle(lane,v){ if(lane==="sn") return (v+1)%3; if(lane==="tm") return (v+1)%4; return v?0:1; }
+function cycle(lane,v){ if(lane==="sn"||lane==="tm") return (v+1)%4; return v?0:1; }
 
 // 卡片上的唯讀小譜：只畫有打的軌，卡片才不會被空白軌撐高
 function miniGridHtml(p){
@@ -558,7 +587,8 @@ function gridHtml(p){
     for(let s=0;s<16;s++){ const v=p[key][s]; h+=`<div class="cell${cellMods(key,v,s)}" data-lane="${key}" data-step="${s}">${cellGlyph(key,v)}</div>`; } }
   return h+"</div></div>";
 }
-const LEGEND='<div class="legend">點格子切換；小鼓連點輪 ●重音→○ghost→空白；Tom 連點輪 H→M→L→空白。　× = hi-hat/ride　○ = open hi-hat　H/M/L = tom 高中低　● = 小鼓重音/大鼓　空白 = 休止</div>';
+const LEGEND='<div class="legend">點格子切換；小鼓連點輪 ●重音→○ghost→◇rimclick→空白；Tom 連點輪 H→M→L→空白。'+
+  '　⊗ = crash　× = hi-hat/ride　○ = open hi-hat　H/M/L = tom 高中低　● = 小鼓重音/大鼓　◇ = rimclick（cross-stick）　空白 = 休止</div>';
 
 // 一張卡的完整外觀（名稱＋標籤＋譜＋備註），庫、挑卡彈窗、曲序都共用
 function cardHtml(c, opt){ opt=opt||{};
@@ -569,6 +599,7 @@ function cardHtml(c, opt){ opt=opt||{};
   return `<div class="dcard${c.parent&&!opt.flat?" variant":""}" data-card="${c.id}">
     <div class="dhead">
       <span class="dtitle"><span class="dname">${escapeHtml(c.name)}</span><span class="dbpm">${c.pattern.tempo}</span></span>
+      <button class="fav${isFav(c.id)?" on":""}" data-fav="${c.id}" title="收藏">♥</button>
       <span class="dbtns">${btns}</span></div>
     ${(()=>{ const kids=opt.showVariants?childrenOf(c.id).filter(k=>!k.archived).length:0;
         const bits=c.tags.slice(); if(kids) bits.push(kids+" 個變體");
@@ -593,10 +624,12 @@ function wireCardButtons(root,opt){ opt=opt||{};
     const c=cardById(b.dataset.variant); if(c) makeVariant(c); }; });
   root.querySelectorAll("[data-edit]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
     openCardDialog(b.dataset.edit); }; });
+  root.querySelectorAll("[data-fav]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
+    toggleFav(b.dataset.fav); b.classList.toggle("on"); if(filt.fav) renderGallery(); }; });
 }
 
 // ---------- 節奏庫：篩選與卡片牆 ----------
-let filt={ kind:"groove", q:"", tags:[] };
+let filt={ kind:"groove", q:"", tags:[], fav:false };
 function renderFilters(){
   const el=document.getElementById("filters");
   el.innerHTML=TAG_GROUPS.map(g=>`<div class="taggroup"><div class="gl">${g.label}</div><div class="chips">`+
@@ -608,6 +641,7 @@ function renderFilters(){
 }
 function matches(c){
   if(c.kind!==filt.kind) return false;
+  if(filt.fav && !isFav(c.id)) return false;
   if(filt.q){ const q=filt.q.toLowerCase();
     if(!((c.name+" "+c.note+" "+c.tags.join(" ")).toLowerCase().includes(q))) return false; }
   for(const g of TAG_GROUPS){   // 組內 OR、組間 AND
@@ -618,10 +652,10 @@ function matches(c){
 }
 // 首頁每個分區最多放幾張代表卡
 const MAX_PER_SECTION=3;
-// 過門沒有「打法特徵」標籤，所以它的預設分區軸是「適用段落」
-function defaultAxis(kind){ return kind==="fill" ? "part" : "feel"; }
+// 過門沒有「打法特徵」標籤，而「適用段落」對過門語意不清，所以預設用「速度感」分區
+function defaultAxis(kind){ return kind==="fill" ? "speed" : "feel"; }   // 過門不一定有「適用段落」，用速度感分區比較實在
 let axis=defaultAxis("groove");
-function filtering(){ return !!(filt.q || filt.tags.length); }
+function filtering(){ return !!(filt.q || filt.tags.length || filt.fav); }
 
 function renderGallery(){
   const el=document.getElementById("gallery"), head=document.getElementById("phright"),
@@ -630,8 +664,9 @@ function renderGallery(){
     const n=renderWall(el);
     title.textContent="篩選結果";
     head.innerHTML=`<span>${n} 張</span><button id="backBrowse">回到分類瀏覽</button>`;
-    head.querySelector("#backBrowse").onclick=()=>{ filt.q=""; filt.tags=[];
-      document.getElementById("searchBox").value=""; renderFilters(); renderGallery(); };
+    head.querySelector("#backBrowse").onclick=()=>{ filt.q=""; filt.tags=[]; filt.fav=false;
+      document.getElementById("searchBox").value=""; document.getElementById("favOnly").checked=false;
+      renderFilters(); renderGallery(); };
   } else {
     const n=renderBrowse(el);
     title.textContent="分類瀏覽";
@@ -708,6 +743,9 @@ function openCardDialog(id){
     <textarea id="cNote" rows="2"${dis}>${escapeHtml(c.note)}</textarea>
     <div class="gp-head"><span class="gp-title ${c.kind==="fill"?"fill":""}">${c.kind==="fill"?"過門 FILL":"節奏 GROOVE"}</span>
       <span class="gp-ctrl">速度 <input type="number" class="tempo" id="cTempo" value="${c.pattern.tempo}" min="40" max="240"${dis}> BPM
+        ${c.kind==="groove"?`配過門 <select id="cFill"><option value="">不加</option>`+
+          data.patterns.filter(x=>x.kind==="fill"&&!x.archived).map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join("")+
+          `</select>`:""}
         <button id="cPlay">播放</button></span></div>
     ${gridHtml(c.pattern)}${LEGEND}
     <div class="family">
@@ -737,7 +775,10 @@ function wireCardDialog(c){
       c.pattern[lane][s]=cycle(lane,c.pattern[lane][s]); save();
       const v=c.pattern[lane][s]; cell.className="cell"+cellMods(lane,v,s); cell.textContent=cellGlyph(lane,v); };
   });
-  d.querySelector("#cPlay").onclick=e=>playToggle(c.pattern,e.currentTarget);
+  d.querySelector("#cPlay").onclick=e=>{
+    const sel=d.querySelector("#cFill"), f=sel&&sel.value?cardById(sel.value):null;
+    playSeq(phrase(c.pattern, f&&f.pattern), e.currentTarget, c.pattern.tempo);
+  };
   if(!ro){
     d.querySelector("#cName").onchange=e=>{ c.name=e.target.value.trim()||"未命名"; save(); };
     d.querySelector("#cNote").onchange=e=>{ c.note=e.target.value.trim(); save(); };
@@ -880,8 +921,7 @@ function renderSections(){
   ul.querySelectorAll("[data-play]").forEach(b=>b.onclick=()=>{ const c=cardById(b.dataset.play); if(c) playToggle(c.pattern,b); });
   ul.querySelectorAll("[data-playsec]").forEach(b=>b.onclick=()=>{
     const sec=secs.find(x=>x.id===b.dataset.playsec), g=cardById(sec.grooveRef), f=cardById(sec.fillRef); if(!g) return;
-    // 節奏兩小節，有過門就接一小節，循環——聽起來就像實際會打的樣子
-    playSeq(f?[{p:g.pattern,bars:2},{p:f.pattern,bars:1}]:[{p:g.pattern,bars:1}], b, g.pattern.tempo); });
+    playSeq(phrase(g.pattern, f&&f.pattern), b, g.pattern.tempo); });
 }
 function move(idx,dir){ const a=curSong().sections, j=idx+dir; if(j<0||j>=a.length) return;
   [a[idx],a[j]]=[a[j],a[idx]]; save(); renderSections(); }
@@ -1015,8 +1055,10 @@ document.getElementById("kindSeg").querySelectorAll("button").forEach(b=>{
   b.onclick=()=>{ stopTransport(); filt.kind=b.dataset.kind; axis=defaultAxis(filt.kind); syncKindSeg(); renderGallery(); };
 });
 document.getElementById("searchBox").oninput=e=>{ filt.q=e.target.value.trim(); renderGallery(); };
-document.getElementById("clearFilt").onclick=()=>{ filt.q=""; filt.tags=[];
-  document.getElementById("searchBox").value=""; renderFilters(); renderGallery(); };
+document.getElementById("favOnly").onchange=e=>{ stopTransport(); filt.fav=e.target.checked; renderGallery(); };
+document.getElementById("clearFilt").onclick=()=>{ filt.q=""; filt.tags=[]; filt.fav=false;
+  document.getElementById("searchBox").value=""; document.getElementById("favOnly").checked=false;
+  renderFilters(); renderGallery(); };
 document.getElementById("newCard").onclick=()=>{
   const c={ id:uid(), name:filt.kind==="fill"?"新過門":"新節奏", kind:filt.kind,
     tags:filt.tags.slice(), parent:null, note:"", author:data.me||"", pattern:emptyPattern() };

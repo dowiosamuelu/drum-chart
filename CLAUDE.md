@@ -18,17 +18,17 @@
   - **收到的卡**：`data.inbox`，分享連結一律先落在這裡，聽過再決定收不收。
 - **管理模式**（`data.admin`，本機 checkbox）：解開官方卡唯讀、顯示「收進官方庫」與「匯出 library.json」。
   **它不授予任何權限**——真正的權限是 repo 的 write 存取。資料本來就公開，藏起來沒有安全意義。
-- **測試**：`node test.js`（41 條，headless、假 DOM、假 fetch）。改動前後都跑一次。
+- **測試**：`node test.js`（68 條，headless、假 DOM、假 fetch）。改動前後都跑一次。
 - **資料模型（v4）**：pattern 是第一級公民。
   ```
   patterns: [{ id, name, kind:"groove"|"fill", tags[], parent, note, author, pattern }]
   songs:    [{ id, name, author, ytUrl, videoId,
                sections:[{ id, label, note, grooveRef, fillRef }] }]   // 段落只存卡片 id
   ```
-- **鼓譜格式**：`pattern = { tempo, ri[], oh[], hh[], tm[], sn[], kk[] }`，每軌 16 格（4/4、十六分）。
+- **鼓譜格式**：`pattern = { tempo, cr[], ri[], oh[], hh[], tm[], sn[], kk[] }`，每軌 16 格（4/4、十六分）。
   - `tm`：0空 / 1 H / 2 M / 3 L（高中低 tom）
-  - `sn`：0空 / 1 重音 / 2 ghost
-  - 其餘軌：0 / 1
+  - `sn`：0空 / 1 重音 / 2 ghost / 3 rimclick（cross-stick）
+  - 其餘軌（`cr` crash、`ri` ride、`oh` open hi-hat、`hh` closed hi-hat、`kk` kick）：0 / 1
   - 軌順序常數見 `LANE_KEYS` 與 `LANES`；內建卡片用 `P("1010...")` 字串寫譜，比陣列好讀。
 - **標籤**：`TAG_GROUPS` 三組——速度感 / 適用段落 / 打法特徵。篩選是**組內 OR、組間 AND**。
 - **畫面**：兩塊——左邊篩選側欄（sticky），右邊有**兩種模式**（`renderGallery()` 依 `filtering()` 決定）：
@@ -42,7 +42,11 @@
   - 編輯在 `#cardDialog` 彈窗裡做，卡片牆不會因為編輯而重排。
 - **播放**：Web Audio 載入 `samples/*.mp3`（真鼓取樣）觸發；`playBuf()` + `GAINS` 表做各鼓件音量微調（open hi-hat 壓到 0.5）。
   排程器是 `playSeq(items, btn, tempo)`（25ms lookahead），`items = [{p, bars}]` 循環播放。
-  A/B 輪流播、段落的「節奏 2 小節＋過門 1 小節」都是靠塞多段進 `playSeq`；**整串共用同一個 tempo**，差別才聽得出來。
+  A/B 輪流播與樂句播放都是靠塞多段進 `playSeq`；**整串共用同一個 tempo**，差別才聽得出來。
+- **樂句播放**：`phrase(groove, fill)` = 第一小節純節奏，第二小節是 `mergedBar()` 合出來的「節奏＋過門」。
+  合的規則是**某一格只要過門有東西，那一格整排就換成過門**（節奏讓位，踩鈸不會疊在 tom 過門上）；
+  過門空著的格子繼續走節奏。所以只佔最後一拍的過門自然就是「前三拍節奏、第四拍過門」。
+- **收藏**：`data.favs` 只存 id，跟卡片內容無關，所以合併官方庫不會影響它。側欄「只看收藏」算一種篩選。
 - **遷移**：`load()` 先讀 v4（`migrate()` 補欄位、清掉失效的 parent），沒有就讀 v3（`fromV3()` 把藏在段落裡的 pattern 抽成卡片），再沒有就 `defaultData()`（空庫）。
   **`migrate()` 不會清掉找不到卡的引用**——官方庫是非同步載入的，清掉會誤殺；找不到就顯示「未指定」，載入後自動復原。
 - **分享**：整庫 / 單首歌 JSON 匯出匯入（歌會**夾帶用到的卡片與其父卡**）＋ fork；**單張卡走網址** `#c=<base64>`（一張卡約 370 字元，塞得進 URL）。
@@ -54,6 +58,8 @@
 - **官方庫移除某張卡時封存而不刪除**，不然別人半年前排的歌會突然少一段。
 - **不做管理者角色**。「收到的卡」對所有人一視同仁；權限來自 repo，不是 app。
 - **不做後端**、不用 GitHub Issue／API 收提案（鼓手不願意辦 GitHub 帳號）、不做排班（那是另一個產品）。
+- 過門**不強制標「適用段落」**——那個標籤對過門語意不清（是「用在主歌裡」還是「用來結束主歌」？），
+  所以過門的預設分區軸是「速度感」。
 - **首頁是分類入口，不是全庫平鋪**：把標籤分類直接變成瀏覽結構，第一屏回答的是「節奏分成哪幾類、每類長怎樣」，
   而不是「這裡有 21 張卡」。新鼓手是主要受眾，他需要先知道有哪些類別存在。老鼓手用搜尋和篩選直接跳過這層。
 - **譜一律直接顯示**，不藏在「點進去才看得到」後面——卡片牆、挑卡彈窗、曲序段落都畫譜。
