@@ -67,7 +67,8 @@ const EXPORTS='{data,filt,play,cardById,childrenOf,matches,encCard,decCard,songP
   'renderGallery,renderBrowse,renderWall,renderSections,renderPicker,miniGridHtml,cardHtml,LANES,LANE_KEYS,'+
   'MAX_PER_SECTION,defaultAxis,filtering,TAG_GROUPS,ALL_TAGS,fromV3,migrate,normCard,defaultData,syncLibrary,'+
   'mergeLibrary,receiveCard,takePastedLink,readOnly,publishSet,cardPayload,picking,mergedBar,phrase,isFav,'+
-  'toggleFav,cellGlyph,cycle,SAMPLE_FILES,emptyPattern,trans,playSeq,stopTransport,loopFillCard,fillCtrlHtml}';
+  'toggleFav,cellGlyph,cycle,SAMPLE_FILES,emptyPattern,trans,playSeq,stopTransport,loopFillCard,fillCtrlHtml,'+
+  'displayName,describeDiff,changedLanes,isAutoName}';
 function boot(){ store={}; return new Function('return (function(){ '+body+'\n; return '+EXPORTS+'; })()')(); }
 const A=(c,m)=>{ if(!c) throw new Error('FAIL: '+m); console.log('ok -',m); };
 const box=()=>({ innerHTML:'', querySelectorAll(){ return []; } });
@@ -265,6 +266,53 @@ A(/--bg:#f7f7f5/.test(src)&&!/#fdf6ec|#ece3cf/.test(src),'Linear／Notion 色票
 A(/\.mini \{[^}]*overflow-y:hidden/.test(src),'小譜的捲軸關著');
 A(/\.varlist \{[^}]*border-left/.test(src),'家族的共用左側軌還在');
 A(/\.dcard:hover \.dbtns/.test(src),'操作按鈕 hover 才出現');
+
+
+// ================= 名字選填、自動描述 =================
+const N=boot(); await N.syncLibrary();
+const un=(id,parent,lanes,tags)=>{ const c=N.normCard({id,name:'',kind:'groove',tags:tags||[],parent,
+  pattern:JSON.parse(JSON.stringify(N.cardById(parent||'g8').pattern))});
+  LK.forEach(k=>{ if(lanes[k]) c.pattern[k]=P(lanes[k]); }); N.data.patterns.push(c); return c; };
+// 沒取名的基礎卡 → 用標籤當標題
+const nb=N.normCard({id:'nb',name:'',kind:'groove',tags:['慢歌','主歌'],pattern:N.cardById('g8').pattern});
+N.data.patterns.push(nb);
+A(N.displayName(nb)==='慢歌 · 主歌','沒取名的基礎卡用標籤當標題');
+A(N.displayName(N.normCard({id:'nn',name:'',kind:'groove',tags:[],pattern:{}}))==='未命名','沒名字也沒標籤才叫未命名');
+A(N.displayName(N.cardById('g8'))==='基本 8 beat','有取名就用名字');
+A(!N.cardHtml(nb).includes('class="dmeta"'),'沒取名的基礎卡不會把標籤重覆印兩次');
+// 沒取名的變體 → 講跟父卡差在哪
+const vg=un('vg','g8',{sn:'0020100200201002'});
+A(N.displayName(vg)==='多了 ghost','變體：'+N.displayName(vg));
+const vk=un('vk','g8',{kk:'1000100010001000'});
+A(N.displayName(vk)==='大鼓四分','變體：'+N.displayName(vk));
+const vh=un('vh','g8',{hh:'1111111111111111'});
+A(N.displayName(vh)==='踩鈸 八分→十六分','變體：'+N.displayName(vh));
+const vr=un('vr','g8',{hh:'0000000000000000',ri:'1010101010101010'});
+A(N.displayName(vr)==='換成 ride','變體：'+N.displayName(vr));
+const vm=un('vm','g8',{sn:'0000300000003000'});
+A(N.displayName(vm)==='小鼓改 rimclick','變體：'+N.displayName(vm));
+const vc=un('vc','g8',{cr:'1000000000000000'});
+A(N.displayName(vc)==='加 crash','變體：'+N.displayName(vc));
+const vsame=un('vsame','g8',{});
+A(N.displayName(vsame)==='一樣','跟父卡完全相同時老實說「一樣」');
+const vmany=un('vmany','g8',{hh:'1111111111111111',sn:'0020300200201002',kk:'1000100010001000',cr:'1000000000000000'});
+A(N.displayName(vmany).includes('等'),'差太多時只講前兩項加「等」：'+N.displayName(vmany));
+// 取了名就用名字
+vg.name='我的 ghost 版';
+A(N.displayName(vg)==='我的 ghost 版','取了名就蓋過自動描述');
+vg.name='';
+// 變體在家族裡只畫差異軌，單獨出現（挑卡、收到的卡）畫完整
+const inFam=N.cardHtml(vg), flat=N.cardHtml(vg,{flat:true});
+A((inFam.match(/class="ml"/g)||[]).length===1,'家族裡的變體只畫有差異的那 1 軌');
+A((flat.match(/class="ml"/g)||[]).length===3,'單獨出現時畫完整的譜');
+A((N.cardHtml(vmany).match(/class="ml"/g)||[]).length>3,'差太多軌就退回畫完整的譜');
+// 搜尋吃自動描述
+N.filt.kind='groove'; N.filt.tags=[]; N.filt.fav=false; N.filt.arch=false; N.filt.q='ghost';
+A(N.data.patterns.filter(N.matches).some(c=>c.id==='vg'),'搜尋 ghost 找得到沒取名的 ghost 變體');
+N.filt.q='';
+// 新卡與變體預設不取名
+A(/name:"",\s*kind:filt.kind/.test(src),'＋新增卡片預設不取名');
+A(/const n=\{ id:uid\(\), name:"", kind:c.kind/.test(src),'做變體預設不取名');
 
 console.log('\n全部通過（'+REAL.patterns.length+' 張官方卡）');
 })().catch(e=>{ console.error('\n'+e.message); process.exit(1); });

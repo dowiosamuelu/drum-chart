@@ -107,6 +107,7 @@
   .dhead { display:flex; justify-content:space-between; align-items:center; gap:8px; }
   .dtitle { display:flex; align-items:baseline; gap:6px; min-width:0; }
   .dname { font-weight:600; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dname.auto { font-weight:500; color:#6b6960; }   /* 自動描述，不是人取的名字 */
   .dbpm { font-size:11px; color:var(--muted); flex-shrink:0; }
   /* 操作是次要的，平常讓路給譜；滑上去才出現 */
   .dbtns { display:flex; gap:4px; flex-shrink:0; opacity:0; transition:opacity .12s; }
@@ -394,7 +395,7 @@ function escapeHtml(s){ return String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;",
 function hasHits(p){ return !!p && LANE_KEYS.some(k=>p[k]&&p[k].some(Boolean)); }
 function normPattern(p){ const fix=a=>{ a=Array.isArray(a)?a.slice(0,16):[]; while(a.length<16)a.push(0); return a.map(n=>n|0); };
   const o=emptyPattern(); if(p&&typeof p==="object"){ o.tempo=p.tempo||90; LANE_KEYS.forEach(k=>{ if(Array.isArray(p[k])) o[k]=fix(p[k]); }); } return o; }
-function normCard(c){ return { id:c.id||uid(), name:c.name||"未命名", kind:c.kind==="fill"?"fill":"groove",
+function normCard(c){ return { id:c.id||uid(), name:c.name||"", kind:c.kind==="fill"?"fill":"groove",
   tags:Array.isArray(c.tags)?[...new Set(c.tags.map(t=>TAG_RENAMES[t]||t))].filter(t=>ALL_TAGS.includes(t)):[], parent:c.parent||null,
   note:c.note||"", author:c.author||"", pattern:normPattern(c.pattern),
   official:!!c.official,   // 來自官方庫 → 本地唯讀，合併時直接覆蓋不會弄丟東西
@@ -590,9 +591,50 @@ function cellGlyph(lane,v){ if(v===0) return "";
 function cellMods(lane,v,s){ return " c-"+lane+(v?" on":"")+(lane==="sn"&&v===2?" ghost":"")+(s%4===0?" beat":""); }
 function cycle(lane,v){ if(lane==="sn"||lane==="tm") return (v+1)%4; return v?0:1; }
 
+// 大部分的節奏沒有天然的名字——你被迫寫的其實是「描述」，而描述應該由譜自己生成。
+// 所以名字選填：基礎卡沒取名就用標籤，變體沒取名就講「跟父卡差在哪」。
+const LANE_CN={cr:"crash",ri:"ride",oh:"開鈸",hh:"踩鈸",tm:"tom",sn:"小鼓",kk:"大鼓"};
+const DENSITY={0:"沒有",2:"二分",4:"四分",8:"八分",16:"十六分"};
+function density(a){ const n=a.filter(Boolean).length; return DENSITY[n]||(n+" 下"); }
+function handLane(p){ return p.hh.some(Boolean)?"hh":p.ri.some(Boolean)?"ri":p.tm.some(Boolean)?"tm":null; }
+function changedLanes(c,b){ return LANE_KEYS.filter(k=>c.pattern[k].join()!==b.pattern[k].join()); }
+function describeDiff(c,b){
+  const cp=c.pattern, bp=b.pattern, out=[];
+  const ch=k=>cp[k].join()!==bp[k].join(), has=(p,k)=>p[k].some(Boolean);
+  const hb=handLane(bp), hc=handLane(cp);
+  if(hb&&hc&&hb!==hc) out.push("換成 "+LANE_CN[hc]);
+  else if(hb&&hc&&ch(hb)){ const d1=density(bp[hb]), d2=density(cp[hc]);
+    if(d1!==d2) out.push(LANE_CN[hb]+" "+d1+"→"+d2); }
+  const ghost=p=>p.sn.filter(v=>v===2).length, rim=p=>p.sn.filter(v=>v===3).length;
+  if(ghost(cp)&&!ghost(bp)) out.push("多了 ghost");
+  else if(!ghost(cp)&&ghost(bp)) out.push("拿掉 ghost");
+  if(rim(cp)&&!rim(bp)) out.push("小鼓改 rimclick");
+  if(ch("kk")){
+    const n1=bp.kk.filter(Boolean).length, n2=cp.kk.filter(Boolean).length;
+    const four=a=>a.filter(Boolean).length===4&&[0,4,8,12].every(i=>a[i]);
+    if(four(cp.kk)&&!four(bp.kk)) out.push("大鼓四分");
+    else if(n2>n1) out.push("大鼓多 "+(n2-n1)+" 顆");
+    else if(n2<n1) out.push("大鼓少 "+(n1-n2)+" 顆");
+    else out.push("大鼓換位置");
+  }
+  if(has(cp,"oh")&&!has(bp,"oh")) out.push("加開鈸");
+  if(has(cp,"cr")&&!has(bp,"cr")) out.push("加 crash");
+  if(!out.length){ const d=LANE_KEYS.filter(ch).map(k=>LANE_CN[k]);
+    return d.length ? d.slice(0,2).join("、")+" 有變" : "一樣"; }
+  // 講不完的通常代表它其實不是變體，是另一張獨立的卡——那個難看的描述就是提醒
+  return out.slice(0,2).join("、")+(out.length>2?" 等":"");
+}
+function displayName(c){
+  if(c.name) return c.name;
+  const b=c.parent&&cardById(c.parent);
+  if(b) return describeDiff(c,b);
+  return c.tags.length ? c.tags.join(" · ") : "未命名";
+}
+function isAutoName(c){ return !c.name; }
+
 // 卡片上的唯讀小譜：只畫有打的軌，卡片才不會被空白軌撐高
-function miniGridHtml(p){
-  const used=LANES.filter(([k])=>p[k].some(Boolean));
+function miniGridHtml(p, only){
+  const used=only ? LANES.filter(([k])=>only.includes(k)) : LANES.filter(([k])=>p[k].some(Boolean));
   if(!used.length) return '<div class="mempty">（還沒點譜，按「編輯」開始）</div>';
   let h='<div class="mini"><div class="mgrid"><div class="mn"></div>';
   for(let s=0;s<16;s++) h+=`<div class="mn${s%4===0?" beat":""}">${s%4===0?(s/4+1):""}</div>`;
@@ -612,20 +654,27 @@ const LEGEND='<div class="legend">點格子切換；小鼓連點輪 ●重音→
 
 // 一張卡的完整外觀（名稱＋標籤＋譜＋備註），庫、挑卡彈窗、曲序都共用
 function cardHtml(c, opt){ opt=opt||{};
+  // 在家族裡的變體只畫跟父卡不同的那幾軌——變體的身分是「差異」，不是完整的譜
+  const base=(!opt.flat&&c.parent)?cardById(c.parent):null;
+  const ch=base?changedLanes(c,base):null;
+  const only=(ch&&ch.length&&ch.length<=3)?ch:null;
+  const auto=isAutoName(c), title=displayName(c);
   const btns = opt.buttons===undefined ? `
       ${c.parent?`<button data-ab="${c.id}">對照</button>`:""}
       <button data-variant="${c.id}">變體</button>
       <button data-edit="${c.id}">編輯</button>` : opt.buttons;
   return `<div class="dcard${c.parent&&!opt.flat?" variant":""}" data-card="${c.id}">
     <div class="dhead">
-      <span class="dtitle"><span class="dname">${escapeHtml(c.name)}</span><span class="dbpm">${c.pattern.tempo}</span></span>
+      <span class="dtitle"><span class="dname${auto?" auto":""}">${escapeHtml(title)}</span><span class="dbpm">${c.pattern.tempo}</span></span>
       <span class="dbtns">${btns}</span>
       <button class="fav${isFav(c.id)?" on":""}" data-fav="${c.id}" title="收藏">${isFav(c.id)?"♥":"♡"}</button></div>
     ${(()=>{ const kids=opt.showVariants?childrenOf(c.id).filter(k=>!k.archived).length:0;
-        const bits=c.tags.slice(); if(kids) bits.push(kids+" 個變體");
+        // 沒取名的基礎卡標題已經是標籤了，就別再重覆一次
+        const bits=(auto&&!c.parent)?[]:c.tags.slice();
+        if(kids) bits.push(kids+" 個變體");
         if(c.official) bits.unshift("官方"); if(c.publish) bits.unshift("待發佈"); if(c.archived) bits.unshift("已封存");
         return bits.length?`<div class="dmeta">${escapeHtml(bits.join(" · "))}</div>`:""; })()}
-    ${miniGridHtml(c.pattern)}
+    ${miniGridHtml(c.pattern, only)}
     ${c.note?`<div class="dnote">${escapeHtml(c.note)}</div>`:""}
   </div>`;
 }
@@ -670,7 +719,7 @@ function matches(c){
   if(c.kind!==filt.kind) return false;
   if(filt.fav && !isFav(c.id)) return false;
   if(filt.q){ const q=filt.q.toLowerCase();
-    if(!((c.name+" "+c.note+" "+c.tags.join(" ")).toLowerCase().includes(q))) return false; }
+    if(!((displayName(c)+" "+c.note+" "+c.tags.join(" ")).toLowerCase().includes(q))) return false; }
   for(const g of TAG_GROUPS){   // 組內 OR、組間 AND
     const want=filt.tags.filter(t=>TAG_GROUP_OF[t]===g.key);
     if(want.length && !want.some(t=>c.tags.includes(t))) return false;
@@ -709,7 +758,7 @@ function renderGallery(){
 function fillCtrlHtml(){
   if(filt.kind!=="groove") return "";
   const f=loopFillCard();
-  return `配過門 <button id="fillPick"${f?' class="on"':""}>${f?escapeHtml(f.name):"不加"}</button>　`;
+  return `配過門 <button id="fillPick"${f?' class="on"':""}>${f?escapeHtml(displayName(f)):"不加"}</button>　`;
 }
 
 // 分區瀏覽：把分類法直接變成瀏覽結構，一眼看到「節奏分成哪幾類」
@@ -755,8 +804,8 @@ function renderWall(el){
 }
 function makeVariant(c){
   const base=c.parent||c.id;   // 變體只做一層，不做巢狀
-  const n={ id:uid(), name:c.name+" 變體", kind:c.kind, tags:c.tags.slice(), parent:base, note:"", author:data.me||"",
-    pattern:structuredClone(c.pattern) };
+  const n={ id:uid(), name:"", kind:c.kind, tags:c.tags.slice(), parent:base, note:"", author:data.me||"",
+    official:false, archived:false, publish:false, pattern:structuredClone(c.pattern) };
   data.patterns.push(n); save(); renderGallery(); openCardDialog(n.id);
 }
 
@@ -771,7 +820,9 @@ function openCardDialog(id){
     <h3>${c.kind==="fill"?"過門":"節奏"}卡${c.parent?"（變體）":""}${c.official?"　·　官方庫":""}</h3>
     ${ro?`<div class="ronote">這是官方庫的卡，唯讀。想改成自己的打法，按下面的「做我自己的版本」。</div>`:""}
     ${(data.admin&&!c.official)?`<label class="pubrow"><input type="checkbox" id="cPub"${c.publish?" checked":""}> 收進官方庫（會出現在下一版 library.json）</label>`:""}
-    <label>名稱</label><input id="cName" value="${escapeHtml(c.name)}" placeholder="這張卡叫什麼"${dis} />
+    <label>名稱（選填）</label>
+    <input id="cName" value="${escapeHtml(c.name)}" placeholder="${escapeHtml(displayName(c))}"${dis} />
+    <div class="tip" style="margin-top:4px">不填就用${c.parent?"「跟父卡差在哪」":"標籤"}自動顯示。常用、常要跟人提到的卡再取名就好。</div>
     <label>標籤（點一下切換）</label>
     <div class="chips" id="cTags">${ALL_TAGS.map(t=>`<span class="chip${c.tags.includes(t)?" on":""}${ro?" ro":""}" data-t="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join("")}</div>
     <label>備註：什麼時候用？要注意什麼？</label>
@@ -785,7 +836,7 @@ function openCardDialog(id){
       ${kids.length?`<div class="tip" style="margin:0 0 8px;">這張底下有 ${kids.length} 個變體。</div>`:""}
       <div class="abrow">
         <button id="mkVariant">＋ 做一個變體</button>
-        ${fam.length?`<select id="abSel">${fam.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join("")}</select>
+        ${fam.length?`<select id="abSel">${fam.map(x=>`<option value="${x.id}">${escapeHtml(displayName(x))}</option>`).join("")}</select>
           <button id="abPlay">輪流播（聽差別）</button>`:`<span class="tip" style="margin:0;">還沒有同家族的卡可以比較</span>`}
       </div>
     </div>
@@ -813,7 +864,7 @@ function wireCardDialog(c){
     playSeq(phrase(c.pattern, f&&f.pattern), e.currentTarget, c.pattern.tempo);
   };
   if(!ro){
-    d.querySelector("#cName").onchange=e=>{ c.name=e.target.value.trim()||"未命名"; save(); };
+  d.querySelector("#cName").onchange=e=>{ c.name=e.target.value.trim(); save(); };
     d.querySelector("#cNote").onchange=e=>{ c.note=e.target.value.trim(); save(); };
     d.querySelector("#cTempo").onchange=e=>{ c.pattern.tempo=Math.min(240,Math.max(40,+e.target.value||90)); e.target.value=c.pattern.tempo; save(); };
     d.querySelectorAll("#cTags .chip").forEach(ch=>{ ch.onclick=()=>{ const t=ch.dataset.t;
@@ -827,7 +878,7 @@ function wireCardDialog(c){
   if(ab) ab.onclick=e=>{ const other=cardById(d.querySelector("#abSel").value); if(!other) return;
     playSeq([{p:c.pattern,bars:2},{p:other.pattern,bars:2}], e.currentTarget, c.pattern.tempo); };
   d.querySelector("#cCopy").onclick=()=>{
-    const n={ id:uid(), name:c.name+(ro?"（我的版本）":"（副本）"), kind:c.kind, tags:c.tags.slice(), parent:null, note:c.note,
+    const n={ id:uid(), name:c.name?c.name+(ro?"（我的版本）":"（副本）"):"", kind:c.kind, tags:c.tags.slice(), parent:null, note:c.note,
       author:data.me||"", official:false, archived:false, publish:false, pattern:structuredClone(c.pattern) };
     data.patterns.push(n); save(); closeCardDialog(); openCardDialog(n.id);
   };
@@ -837,7 +888,7 @@ function wireCardDialog(c){
   if(arch) arch.onclick=()=>{
     if(!c.archived){
       const used=data.songs.flatMap(x=>x.sections).filter(x=>x.grooveRef===c.id||x.fillRef===c.id).length;
-      if(!confirm("把「"+c.name+"」移出官方庫？\n它不會被刪掉，只是不再出現在瀏覽裡，下次匯出的 library.json 也不會包含它。"
+      if(!confirm("把「"+displayName(c)+"」移出官方庫？\n它不會被刪掉，只是不再出現在瀏覽裡，下次匯出的 library.json 也不會包含它。"
         +(used?"\n目前有 "+used+" 個段落在用它，那些段落還是能播。":""))) return;
     }
     c.archived=!c.archived; save(); closeCardDialog();
@@ -850,7 +901,7 @@ document.getElementById("cardDialog").addEventListener("close", ()=>{ stopTransp
 function deleteCard(c){
   const kids=childrenOf(c.id);
   const used=data.songs.flatMap(s=>s.sections).filter(x=>x.grooveRef===c.id||x.fillRef===c.id).length;
-  let msg="刪除「"+c.name+"」？";
+  let msg="刪除「"+displayName(c)+"」？";
   if(kids.length) msg+="\n底下 "+kids.length+" 個變體會變成獨立的基礎卡。";
   if(used) msg+="\n有 "+used+" 個段落正在用這張，會變成空的。";
   if(!confirm(msg)) return;
@@ -937,7 +988,7 @@ function renderSong(){
 function secPartHtml(sec,kind){
   const ref = kind==="fill"?sec.fillRef:sec.grooveRef, c=cardById(ref), label=kind==="fill"?"過門":"節奏";
   return `<div class="secpart"><div class="ph"><span class="k">${label}</span>
-      ${c?`<b>${escapeHtml(c.name)}</b><span class="k">${c.pattern.tempo} BPM${c.archived?" · 已封存":""}</span>
+      ${c?`<b>${escapeHtml(displayName(c))}</b><span class="k">${c.pattern.tempo} BPM${c.archived?" · 已封存":""}</span>
            <button data-play="${c.id}">試聽</button>`:`<span class="none">（未指定）</span>`}
       <button data-pick="${kind}" data-sec="${sec.id}">${c?"換一張":"挑卡"}</button></div>
     ${c?miniGridHtml(c.pattern):""}</div>`;
@@ -1011,7 +1062,7 @@ function openFillPicker(){
 function renderPicker(){
   const el=document.getElementById("picklist"), q=picking.q.toLowerCase();
   const list=data.patterns.filter(c=>c.kind===picking.kind && !c.archived &&
-    (!q || (c.name+" "+c.note+" "+c.tags.join(" ")).toLowerCase().includes(q)));
+    (!q || (displayName(c)+" "+c.note+" "+c.tags.join(" ")).toLowerCase().includes(q)));
   el.innerHTML = list.length
     ? list.map(c=>cardHtml(c,{ flat:true, buttons:`<button data-play="${c.id}">試聽</button><button class="primary" data-use="${c.id}">選這張</button>` })).join("")   // 這裡點卡片＝選這張，所以試聽仍是明確的按鈕
     : '<div class="empty">節奏庫裡沒有符合的卡。先去節奏庫做一張。</div>';
@@ -1118,7 +1169,7 @@ document.getElementById("clearFilt").onclick=()=>{ filt.q=""; filt.tags=[]; filt
   document.getElementById("searchBox").value=""; document.getElementById("favOnly").checked=false;
   renderFilters(); renderGallery(); };
 document.getElementById("newCard").onclick=()=>{
-  const c={ id:uid(), name:filt.kind==="fill"?"新過門":"新節奏", kind:filt.kind,
+  const c={ id:uid(), name:"", kind:filt.kind,
     tags:filt.tags.slice(), parent:null, note:"", author:data.me||"", pattern:emptyPattern() };
   data.patterns.push(c); save(); renderGallery(); openCardDialog(c.id);
 };
