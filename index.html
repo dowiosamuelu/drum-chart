@@ -3,37 +3,139 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>鼓手攻略表</title>
+<title>鼓手節奏庫</title>
 <style>
   :root {
-    --bg:#ece3cf; --panel:#fbf6ea; --panel-2:#f2ead8; --line:#ddceb1;
-    --text:#3c322a; --muted:#8a7c64; --accent:#c05a3e; --accent-soft:#f0ddcb;
-    --green:#6e7a3c; --blue:#5b7a8a; --beat:#cdb98f;
+    --bg:#f7f7f5; --panel:#ffffff; --panel-2:#fbfbfa; --line:#e8e8e6; --line-2:#f0f0ee;
+    --text:#37352f; --muted:#8a8880; --accent:#5b5bd6; --accent-soft:#eeeefb;
+    --green:#4f8a6a; --blue:#4a72a8; --beat:#dcdcd8; --faint:#ededeb;
+    --hover:#f4f4f2; --danger:#c94a3d;
+    --shadow:0 1px 2px rgba(15,15,15,.04), 0 1px 3px rgba(15,15,15,.03);
   }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:-apple-system,"Noto Sans TC","PingFang TC",sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
-  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
-  header h1 { font-size:17px; margin:0; font-weight:600; }
+  body { margin:0; font-family:Inter,-apple-system,"Noto Sans TC","PingFang TC",sans-serif; background:var(--bg); color:var(--text);
+         line-height:1.5; -webkit-font-smoothing:antialiased; }
+  header { padding:12px 20px; border-bottom:1px solid var(--line); background:var(--panel); display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0; font-weight:600; letter-spacing:-.01em; }
   header .hint { color:var(--muted); font-size:12px; }
-  .songtabs { display:flex; gap:6px; flex-wrap:wrap; margin-left:auto; }
-  .songtab { padding:5px 12px; border-radius:3px; border:1px solid var(--line); background:var(--panel); color:var(--muted); cursor:pointer; font-size:13px; }
-  .songtab.active { background:var(--accent); color:#fdf6ec; border-color:var(--accent); font-weight:600; }
-  .songtab.add { color:var(--green); }
+  .nav { display:flex; gap:2px; margin-left:auto; }
+  .navtab { padding:5px 12px; border-radius:6px; border:0; background:transparent; color:var(--muted); cursor:pointer; font-size:13px; }
+  .navtab:hover { background:var(--hover); color:var(--text); }
+  .navtab.active { background:var(--accent-soft); color:var(--accent); font-weight:600; }
 
-  .wrap { display:grid; grid-template-columns:1fr 1.25fr; gap:16px; padding:16px 20px; align-items:start; }
-  @media (max-width:900px){ .wrap{ grid-template-columns:1fr; } }
-  .panel { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:14px; }
-  .panel h2 { font-size:13px; margin:0 0 10px; color:var(--muted); font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
+  .wrap { display:grid; gap:16px; padding:16px 20px; align-items:start; }
+  .wrap.lib  { grid-template-columns:230px 1fr; }
+  .wrap.song { grid-template-columns:300px 1fr; }
+  @media (max-width:860px){ .wrap.lib, .wrap.song { grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; box-shadow:var(--shadow); }
+  .panel h2 { font-size:11px; margin:0 0 10px; color:var(--muted); font-weight:600; letter-spacing:.05em; text-transform:uppercase; }
+  .panel h2 .count { color:var(--muted); font-weight:400; }
+  .side { position:sticky; top:16px; }
+  @media (max-width:860px){ .side { position:static; } }
 
   .row { display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
-  input, button, textarea { font-family:inherit; font-size:13px; border-radius:3px; border:1px solid var(--line); background:var(--panel-2); color:var(--text); padding:7px 10px; }
-  input:focus, textarea:focus { outline:1px solid var(--accent); }
-  button { cursor:pointer; background:var(--panel-2); }
-  button:hover { border-color:var(--accent); }
-  button.primary { background:var(--accent); color:#fdf6ec; border-color:var(--accent); font-weight:600; }
+  input, button, textarea, select { font-family:inherit; font-size:13px; border-radius:6px; border:1px solid var(--line);
+    background:var(--panel); color:var(--text); padding:6px 10px; }
+  input, textarea, select { background:var(--panel-2); }
+  input:focus, textarea:focus, select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  button { cursor:pointer; }
+  button:hover { background:var(--hover); }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:500; }
+  button.primary:hover { background:#4f4fc4; }
+  button:disabled { opacity:.4; cursor:default; }
+  button:disabled:hover { background:var(--panel); }
+  button.playing { background:var(--accent); color:#fff; border-color:var(--accent); }
   .grow { flex:1; min-width:120px; }
-  .author { color:var(--muted); font-size:12px; margin-top:6px; }
-  .author input { padding:3px 7px; font-size:12px; width:130px; }
+  .danger { color:var(--danger); }
+  .danger:hover { background:#fdf1f0; }
+  .tip { font-size:11px; color:var(--muted); margin-top:4px; }
+  .sharebar { display:flex; gap:6px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--line-2); }
+  .sharebar button { font-size:12px; }
+
+  /* 篩選 */
+  .seg { display:flex; }
+  .seg button { border-radius:0; flex:1; }
+  .seg button:first-child { border-radius:6px 0 0 6px; }
+  .seg button:last-child { border-radius:0 6px 6px 0; border-left:0; }
+  .seg button.on { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:500; }
+  .taggroup { margin-top:12px; }
+  .taggroup .gl { font-size:11px; color:var(--muted); margin-bottom:5px; }
+  .chips { display:flex; flex-wrap:wrap; gap:5px; }
+  .chip { font-size:11px; padding:3px 9px; border-radius:5px; border:0; background:var(--hover); color:var(--muted); cursor:pointer; }
+  .chip:hover { background:#eaeae7; color:var(--text); }
+  .chip.on { background:var(--accent-soft); color:var(--accent); font-weight:500; }
+  .chip.ro { cursor:default; background:transparent; padding:0; }
+
+  /* 首頁是分區瀏覽；一有搜尋或篩選才切成平鋪的卡片牆 */
+  .panelhead { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .panelhead h2 { margin:0; }
+  .phright { margin-left:auto; display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); }
+  .phright select { padding:3px 6px; font-size:11px; }
+  .sect { margin-bottom:22px; }
+  .secthead { display:flex; align-items:baseline; gap:8px; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid var(--line-2); }
+  .secthead h3 { font-size:12px; margin:0; text-transform:uppercase; letter-spacing:.05em; font-weight:600; }
+  .sectn { font-size:11px; color:var(--muted); }
+  .secthead button { margin-left:auto; border:0; background:transparent; color:var(--muted); font-size:11px; padding:2px 6px; }
+  .secthead button:hover { background:var(--hover); color:var(--accent); }
+  .sectgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:10px; align-items:start; }
+  .wall { columns:390px; column-gap:14px; }
+  .fam { break-inside:avoid; margin:0 0 14px; }
+  .dcard { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px; cursor:pointer;
+           transition:background .1s, border-color .1s; }
+  .dcard + .dcard { margin-top:6px; }
+  .dcard:hover { background:var(--panel-2); border-color:var(--beat); }
+  /* 家族：一條共用的左側軌串起所有變體，不靠每張卡各自位移
+     （位移在瀑布流裡沒有參照點——排到欄頂的變體上面沒東西可以「相對」） */
+  .varlist { margin:6px 0 0 8px; padding-left:10px; border-left:2px solid var(--beat); }
+  /* 變體的底色下沉一階：跟頁面同色，讀起來是「凹進去的次要層」 */
+  .dcard.variant { background:var(--bg); border-color:var(--line-2); }
+  .dcard.variant:hover { background:var(--hover); border-color:var(--beat); }
+  .dcard.playing { border-color:var(--accent); background:var(--accent-soft); }
+  .dhead { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .dtitle { display:flex; align-items:baseline; gap:6px; min-width:0; }
+  .dname { font-weight:600; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dbpm { font-size:11px; color:var(--muted); flex-shrink:0; }
+  /* 操作是次要的，平常讓路給譜；滑上去才出現 */
+  .dbtns { display:flex; gap:4px; flex-shrink:0; opacity:0; transition:opacity .12s; }
+  .dcard:hover .dbtns, .dcard:focus-within .dbtns { opacity:1; }
+  @media (hover:none){ .dbtns { opacity:1; } }
+  .pickerlist .dbtns { opacity:1; }
+  .dbtns button { padding:2px 8px; font-size:11px; }
+  /* 標籤退成一行小字：pill 太重，而且會跟側欄「可點的篩選 pill」搞混 */
+  .dmeta, .dnote { font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dmeta { margin-top:2px; }
+  .dnote { font-size:12px; margin-top:6px; }
+
+  /* 唯讀小譜：只畫有打的軌，而且只畫音符——空格不畫盒子，拍線貫穿整張譜 */
+  .mini { margin-top:8px; overflow-x:auto; overflow-y:hidden; scrollbar-width:none; }
+  .mini::-webkit-scrollbar { display:none; }
+  .mgrid { display:grid; grid-template-columns:42px repeat(16,minmax(11px,1fr)); min-width:228px; }
+  .ml { font-size:10px; color:var(--muted); display:flex; align-items:center; height:14px; }
+  .mc { height:14px; display:flex; align-items:center; justify-content:center; font-size:11px; line-height:1; color:var(--text); }
+  .mc.beat, .mn.beat { border-left:1px solid var(--faint); }
+  .mc.c-hh, .mc.c-ri, .mc.c-oh { color:#b4b2ac; }
+  .mc.c-sn, .mc.c-kk { color:var(--text); }
+  .mc.ghost { color:#c8c6c0; font-size:10px; }
+  .mc.c-tm { color:var(--green); font-size:10px; font-weight:600; }
+  .mn { font-size:9px; color:var(--muted); text-align:center; line-height:12px; height:12px; }
+  .mempty { font-size:12px; color:var(--muted); padding:6px 0; }
+
+  /* 曲序 */
+  ul.sections { list-style:none; margin:0; padding:0; }
+  li.section { display:grid; grid-template-columns:auto 1fr auto; gap:10px; padding:10px; border:1px solid var(--line);
+               border-radius:6px; margin-bottom:8px; background:var(--panel); }
+  .ord { display:flex; flex-direction:column; gap:2px; }
+  .ord button { padding:0 5px; font-size:10px; line-height:1.3; }
+  .seclabel { font-weight:600; }
+  .secnote { font-size:12px; color:var(--muted); }
+  .secpart { margin-top:8px; }
+  .secpart .ph { display:flex; align-items:center; gap:6px; font-size:12px; flex-wrap:wrap; }
+  .secpart .ph .k { color:var(--muted); }
+  .secpart .ph b { font-weight:600; }
+  .secpart .ph .none { color:var(--muted); }
+  .secpart .ph button { padding:2px 8px; font-size:11px; }
+  .secbtns { display:flex; flex-direction:column; gap:5px; }
+  .secbtns button { padding:4px 9px; font-size:11px; }
 
   details.refvid { margin-top:16px; }
   details.refvid > summary { font-size:13px; color:var(--muted); font-weight:600; letter-spacing:.04em; text-transform:uppercase; cursor:pointer; list-style:none; padding:4px 0; }
@@ -44,71 +146,104 @@
   .videowrap iframe, .videowrap .placeholder { position:absolute; inset:0; width:100%; height:100%; border:0; }
   .placeholder { display:flex; align-items:center; justify-content:center; color:var(--muted); flex-direction:column; gap:6px; text-align:center; padding:20px; font-size:13px; }
 
-  .sharebar { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px dashed var(--line); }
-  .sharebar button { font-size:12px; }
-  .tip { font-size:11px; color:var(--muted); margin-top:4px; }
+  .songtabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .songtab { padding:4px 10px; border-radius:6px; border:0; background:var(--hover); color:var(--muted); cursor:pointer; font-size:13px; }
+  .songtab:hover { background:#eaeae7; color:var(--text); }
+  .songtab.active { background:var(--accent-soft); color:var(--accent); font-weight:500; }
+  .songtab.add { color:var(--green); }
 
-  ul.sections { list-style:none; margin:0; padding:0; }
-  li.section { display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; padding:9px 10px; border:1px solid var(--line); border-radius:3px; margin-bottom:7px; cursor:pointer; background:var(--panel-2); }
-  li.section:hover { border-color:var(--accent); }
-  li.section.active { border-color:var(--accent); background:var(--accent-soft); }
-  .ord { display:flex; flex-direction:column; gap:2px; }
-  .ord button { padding:0 5px; font-size:10px; line-height:1.3; background:var(--panel); }
-  .seclabel { font-weight:600; }
-  .secmeta { font-size:12px; color:var(--muted); }
-  .secmeta .has { color:var(--green); }
-  .secbtns button { padding:3px 7px; font-size:11px; }
-
-  .note { font-size:13px; background:var(--panel-2); border-radius:3px; padding:8px 10px; margin-bottom:12px; border-left:3px solid var(--accent); }
-  .gp-block { margin-bottom:16px; }
-  .gp-head { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+  /* 可編輯大格子（彈窗裡） */
+  .gp-head { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin:14px 0 8px; }
   .gp-title { font-size:12px; font-weight:600; color:var(--accent); letter-spacing:.04em; }
   .gp-title.fill { color:var(--blue); }
   .gp-ctrl { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
   .gp-ctrl .tempo { width:56px; padding:3px 6px; }
-  .gp-ctrl .play { padding:4px 12px; }
-  .gp-ctrl .play.playing { background:var(--accent); color:#fdf6ec; border-color:var(--accent); }
-  .gp-ctrl .rmfill { padding:4px 8px; color:#b04a32; }
-
   .gridscroll { overflow-x:auto; }
-  .grid { display:grid; grid-template-columns:46px repeat(16, minmax(20px,1fr)); gap:3px; min-width:420px; }
+  .grid { display:grid; grid-template-columns:48px repeat(16, minmax(20px,1fr)); gap:3px; min-width:420px; }
   .lane-label { font-size:11px; color:var(--muted); display:flex; align-items:center; }
-  .cell { aspect-ratio:1/1; border:1px solid var(--line); border-radius:3px; background:var(--panel); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:14px; line-height:1; color:var(--text); user-select:none; }
+  .cell { aspect-ratio:1/1; border:1px solid var(--line); border-radius:4px; background:var(--panel-2); cursor:pointer;
+          display:flex; align-items:center; justify-content:center; font-size:14px; line-height:1; color:var(--text); user-select:none; }
   .cell:hover { border-color:var(--accent); }
   .cell.on { background:var(--accent-soft); }
-  .cell.beat { box-shadow:inset 2px 0 0 var(--beat); }
+  .cell.beat { box-shadow:inset 2px 0 0 var(--accent-soft); }
   .cell.ghost { color:var(--muted); font-size:12px; }
   .cell.c-ri, .cell.c-oh { color:var(--blue); }
   .cell.c-tm { color:var(--green); font-size:12px; font-weight:600; }
   .legend { font-size:11px; color:var(--muted); margin-top:6px; }
-  .empty { padding:26px; text-align:center; color:var(--muted); background:var(--panel-2); border-radius:3px; font-size:13px; }
-  .addfill { width:100%; }
+  .empty { padding:26px; text-align:center; color:var(--muted); background:var(--panel-2); border-radius:6px; font-size:13px; }
 
-  dialog { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:5px; padding:18px; width:min(440px,92vw); }
-  dialog::backdrop { background:rgba(0,0,0,.45); }
+  .family { margin-top:14px; padding-top:12px; border-top:1px solid var(--line-2); }
+  .family h3 { font-size:12px; margin:0 0 8px; color:var(--muted); font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
+  .abrow { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .abrow select { padding:5px 8px; max-width:200px; }
+
+  dialog { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:20px; width:min(700px,94vw);
+           box-shadow:0 8px 32px rgba(15,15,15,.14); }
+  dialog::backdrop { background:rgba(15,15,15,.28); }
   dialog h3 { margin:0 0 12px; font-size:15px; }
   dialog label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
   dialog input, dialog textarea { width:100%; }
-  dialog .dlg-btns { display:flex; justify-content:space-between; margin-top:16px; gap:8px; }
+  dialog .dlg-btns { display:flex; justify-content:space-between; margin-top:16px; gap:8px; flex-wrap:wrap; }
+  .pickerlist { max-height:52vh; overflow-y:auto; margin-top:10px; }
+  .pickerlist .dcard { cursor:pointer; margin-bottom:8px; }
+  .pickerlist .dcard:hover { border-color:var(--accent); }
   a { color:var(--accent); }
 </style>
 </head>
 <body>
 <header>
-  <h1>鼓手攻略表</h1>
-  <span class="hint">按曲序排段落 · 每段點格子編節奏與過門 · 分享給其他鼓手 · 做自己的版本</span>
-  <div class="songtabs" id="songtabs"></div>
+  <h1>鼓手節奏庫</h1>
+  <span class="hint">收集「可以打什麼節奏、可以用什麼過門」· 譜直接看得到、點下去聽得到 · 傳承給新鼓手</span>
+  <div class="nav">
+    <button class="navtab active" data-view="lib">節奏庫</button>
+    <button class="navtab" data-view="song">歌曲</button>
+  </div>
 </header>
 
-<div class="wrap">
+<!-- ============ 節奏庫 ============ -->
+<div class="wrap lib" id="viewLib">
+  <div class="panel side">
+    <h2>篩選</h2>
+    <div class="seg" id="kindSeg">
+      <button data-kind="groove" class="on">節奏</button>
+      <button data-kind="fill">過門</button>
+    </div>
+    <div class="row"><input class="grow" id="searchBox" placeholder="搜尋名稱或備註" /></div>
+    <div id="filters"></div>
+    <div class="row">
+      <button id="clearFilt">清除篩選</button>
+      <button class="primary grow" id="newCard">＋ 新增卡片</button>
+    </div>
+    <div class="sharebar">
+      <button id="exportLib">匯出整庫</button>
+      <button id="importFile">匯入檔案</button>
+      <input type="file" id="fileInput" accept="application/json" style="display:none" />
+    </div>
+    <div class="tip">整庫匯出成 .json 傳給其他鼓手；單張卡可以在「編輯」裡複製分享連結。</div>
+  </div>
+
   <div class="panel">
+    <div class="panelhead">
+      <h2 id="galleryTitle">分類瀏覽</h2>
+      <div class="phright" id="phright"></div>
+    </div>
+    <div class="gallery" id="gallery"></div>
+  </div>
+</div>
+
+<!-- ============ 歌曲 ============ -->
+<div class="wrap song" id="viewSong" style="display:none;">
+  <div class="panel side">
     <h2>歌曲</h2>
+    <div class="songtabs" id="songtabs"></div>
     <div class="row">
       <input class="grow" id="songName" placeholder="歌名" />
       <button id="renameSong">改名</button>
-      <button id="delSong">刪除</button>
     </div>
-    <div class="author">編輯者：<input id="author" placeholder="你的名字" /></div>
+    <div class="row">
+      <input class="grow" id="author" placeholder="編輯者（你的名字）" />
+      <button id="delSong" class="danger">刪除這首</button>
+    </div>
 
     <details id="refvid" class="refvid">
       <summary>參考影片（選配）</summary>
@@ -120,89 +255,187 @@
     </details>
 
     <div class="sharebar">
-      <button class="primary" id="exportJson">匯出這首</button>
-      <button id="exportAll">匯出全部</button>
-      <button id="importJson">匯入檔案</button>
+      <button class="primary" id="exportSong">匯出這首</button>
+      <button id="exportAll">匯出全部歌曲</button>
+      <button id="importFile2">匯入檔案</button>
       <button id="fork">做我自己的版本</button>
-      <input type="file" id="fileInput" accept="application/json" style="display:none" />
     </div>
-    <div class="tip">分享：匯出 .json 傳給其他鼓手，對方匯入就能看＆聽，再按「做我自己的版本」改成他的。</div>
+    <div class="tip">匯出的歌會連同用到的節奏卡一起打包，對方匯入就能看＆聽。</div>
   </div>
 
   <div class="panel">
     <h2>曲序</h2>
     <ul class="sections" id="sections"></ul>
     <div class="row"><button class="primary grow" id="addSection">＋ 新增段落</button></div>
-
-    <h2 style="margin-top:18px;">這段怎麼打</h2>
-    <div id="editor"><div class="empty">點上面任一段落，這裡會出現可編輯的節奏與過門格子</div></div>
+    <div class="tip">段落的節奏與過門都是從節奏庫挑卡。想要新打法，去節奏庫做一張（或做成某張卡的變體）。</div>
   </div>
 </div>
 
+<dialog id="cardDialog"><div id="cardDlgBody"></div></dialog>
+
 <dialog id="secDialog">
   <h3 id="secDlgTitle">新增段落</h3>
-  <label>段落名稱（Intro / Verse 1 / Verse 2 / 副歌 / Bridge…）</label>
+  <label>段落名稱（Intro / Verse 1 / 副歌 / Bridge…）</label>
   <input id="secLabel" placeholder="Verse 1" />
   <label>備註（選填，例如「副歌前漸強」「鈸收尾」）</label>
   <textarea id="secNote" rows="2" placeholder="想提醒自己或別人的事"></textarea>
   <div class="dlg-btns">
-    <button id="secDelete" style="color:#b04a32;">刪除</button>
+    <button id="secDelete" class="danger">刪除</button>
     <div><button id="secCancel">取消</button> <button class="primary" id="secSave">儲存</button></div>
+  </div>
+</dialog>
+
+<dialog id="pickDialog">
+  <h3 id="pickTitle">挑一張卡</h3>
+  <input id="pickSearch" placeholder="搜尋名稱、備註或標籤" />
+  <div class="pickerlist" id="picklist"></div>
+  <div class="dlg-btns">
+    <button id="pickClear" class="danger">不用這張（清空）</button>
+    <button id="pickCancel">取消</button>
   </div>
 </dialog>
 
 <script>
 // ---------- 鼓譜資料格式 ----------
-// pattern = { tempo, hh:[16], sn:[16], kk:[16] }；hh/kk 值 0/1，sn 值 0=空 1=重音 2=ghost
+// pattern = { tempo, ri[16], oh[16], hh[16], tm[16], sn[16], kk[16] }
 // 軌：ri=ride, oh=open hi-hat, hh=closed hi-hat, tm=tom(1=H 2=M 3=L), sn=snare(1=重音 2=ghost), kk=kick
+// card = { id, name, kind:"groove"|"fill", tags[], parent, note, author, pattern }
 const LANE_KEYS=["ri","oh","hh","tm","sn","kk"];
 function z(){ return Array(16).fill(0); }
 function emptyPattern(){ return { tempo:90, ri:z(), oh:z(), hh:z(), tm:z(), sn:z(), kk:z() }; }
-function mkPat(tempo,obj){ const p=emptyPattern(); p.tempo=tempo; for(const k in obj) p[k]=obj[k].slice(); return p; }
-const ROCK = mkPat(90,{
-  hh:[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
-  sn:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
-  kk:[1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0]});
-const ROCK_GHOST = mkPat(90,{
-  hh:[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
-  sn:[0,0,2,0,1,0,2,0,0,0,2,0,1,0,2,2],
-  kk:[1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0]});
-const FILL = mkPat(90,{
-  sn:[0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0],
-  tm:[0,0,0,0,0,0,0,0,0,0,1,1,2,2,3,3],
-  kk:[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]});
-const CHORUS = mkPat(96,{
-  ri:[1,0,1,0,1,0,1,0,1,0,1,0,1,0,0,0],
-  oh:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],
-  sn:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
-  kk:[1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0]});
+// 用字串寫譜比陣列好讀："1010101010101010"
+function P(str){ const a=z(), s=String(str).replace(/\s/g,""); for(let i=0;i<16;i++) a[i]=(+s[i])||0; return a; }
+function mkPat(tempo,obj){ const p=emptyPattern(); p.tempo=tempo; for(const k in obj) p[k]=P(obj[k]); return p; }
 
-const defaultData = {
-  currentId:"s1", me:"",
-  songs:[{
-    id:"s1", name:"範例：把這首改成你的歌", author:"", ytUrl:"", videoId:"",
+// ---------- 標籤（組內 OR、組間 AND） ----------
+// 沒有 shuffle / 6-8：16 格的 4/4 打不出三連音，硬塞只會是假的
+const TAG_GROUPS=[
+  { key:"speed", label:"速度感",   tags:["快歌","中板","慢歌"] },
+  { key:"part",  label:"適用段落", tags:["Intro/Outro","主歌","副歌","橋段"] },
+  { key:"feel",  label:"打法特徵", tags:["8 beat","16 beat","half-time","一拍一下","tom-tom","跑 ride"] },
+];
+const TAG_GROUP_OF={}; TAG_GROUPS.forEach(g=>g.tags.forEach(t=>TAG_GROUP_OF[t]=g.key));
+const ALL_TAGS=TAG_GROUPS.flatMap(g=>g.tags);
+
+// ---------- 內建節奏庫 ----------
+function C(id,name,tags,tempo,lanes,opt){ opt=opt||{};
+  return { id, name, kind:opt.kind||"groove", tags, parent:opt.parent||null, note:opt.note||"", author:"", pattern:mkPat(tempo,lanes) }; }
+function seedCards(){ return [
+  // 8 beat 家族
+  C("g8","基本 8 beat",["中板","主歌","8 beat"],92,
+    {hh:"1010101010101010",sn:"0000100000001000",kk:"1000000010000000"},{note:"最素的底。先會這個，其他都是它的變化。"}),
+  C("g8g","8 beat ＋ ghost 小鼓",["中板","主歌","8 beat"],92,
+    {hh:"1010101010101010",sn:"0020100200201002",kk:"1000000010000000"},{parent:"g8",note:"小鼓輕點填空隙，聽起來就活了。"}),
+  C("g8k","8 beat 大鼓切分",["中板","主歌","8 beat"],92,
+    {hh:"1010101010101010",sn:"0000100000001000",kk:"1000001010000000"},{parent:"g8",note:"第二拍後半多一顆大鼓，最常見的推進感。"}),
+  C("g8s","8 beat 十六分踩鈸",["中板","副歌","16 beat"],92,
+    {hh:"1111111111111111",sn:"0000100000001000",kk:"1000001010000000"},{parent:"g8",note:"密度上來但不換節奏，副歌很好用。"}),
+  C("g8o","8 beat 開合 hi-hat",["中板","副歌","8 beat"],92,
+    {hh:"1010101010101000",oh:"0000000000000010",sn:"0000100000001000",kk:"1000001010000000"},{parent:"g8",note:"小節尾開一下鈸，換段前的呼吸。"}),
+  C("g8q","8 beat 一拍一下",["中板","主歌","一拍一下"],92,
+    {hh:"1000100010001000",sn:"0000100000001000",kk:"1000000010000000"},{parent:"g8",note:"要收、要留白的時候用；主領說「安靜一點」通常是要這個。"}),
+  // half-time 家族
+  C("ght","Half-time 基本",["慢歌","主歌","half-time"],88,
+    {hh:"1010101010101010",sn:"0000000010000000",kk:"1000000000000000"},{note:"小鼓只落第三拍，速度沒變但感覺慢一半。"}),
+  C("ghtg","Half-time ＋ ghost",["慢歌","主歌","half-time"],88,
+    {hh:"1010101010101010",sn:"0002000010002020",kk:"1000001000000000"},{parent:"ght",note:"空隙用 ghost 補，不會空得發慌。"}),
+  C("ghtr","Half-time 跑 ride",["慢歌","橋段","half-time","跑 ride"],88,
+    {ri:"1010101010101010",sn:"0000000010000000",kk:"1000001000000000"},{parent:"ght",note:"換到 ride，音色打開但力度不加。"}),
+  // 副歌 ride 家族
+  C("gcr","副歌 跑 ride",["快歌","副歌","跑 ride"],100,
+    {ri:"1010101010101010",sn:"0000100000001000",kk:"1000001010000000"},{note:"副歌最順手的一張：ride 撐住，力度自然上來。"}),
+  C("gcro","副歌 ride ＋ 開鈸收",["快歌","副歌","跑 ride"],100,
+    {ri:"1010101010101000",oh:"0000000000000010",sn:"0000100000001000",kk:"1000001010000000"},{parent:"gcr"}),
+  C("gcrq","副歌 ride 一拍一下",["快歌","副歌","一拍一下","跑 ride"],100,
+    {ri:"1000100010001000",sn:"0000100000001000",kk:"1000001010000000"},{parent:"gcr",note:"大場面感；ride 敲得少反而更寬。"}),
+  // 16 beat 家族
+  C("g16","16 beat 基本",["中板","主歌","16 beat"],84,
+    {hh:"1111111111111111",sn:"0000100000001000",kk:"1000000010000000"},{note:"慢一點的歌用十六分踩鈸，不會顯得拖。"}),
+  C("g16g","16 beat ＋ ghost",["中板","主歌","16 beat"],84,
+    {hh:"1111111111111111",sn:"0020100200201000",kk:"1000000010000000"},{parent:"g16"}),
+  C("g16k","16 beat 大鼓雙點",["中板","副歌","16 beat"],84,
+    {hh:"1111111111111111",sn:"0000100000001000",kk:"1001000010010000"},{parent:"g16",note:"大鼓補十六分，密度往下半身走。"}),
+  // tom-tom
+  C("gtom","Tom-tom 節奏",["中板","橋段","tom-tom"],92,
+    {tm:"3030303030303030",sn:"0000100000001000",kk:"1000001010000000"},{note:"整段離開 hi-hat，橋段或安靜段落換氣氛用。"}),
+  C("gtomh","Tom-tom 高低交替",["中板","橋段","tom-tom"],92,
+    {tm:"1030103010301030",sn:"0000100000001000",kk:"1000001010000000"},{parent:"gtom"}),
+  // 抒情
+  C("gbal","抒情 8 beat",["慢歌","主歌","8 beat"],68,
+    {hh:"1010101010101010",sn:"0000100000001000",kk:"1000000010000000"},{note:"慢歌的基本盤。"}),
+  C("gbalr","抒情 跑 ride",["慢歌","副歌","跑 ride"],68,
+    {ri:"1010101010101010",sn:"0000100000001000",kk:"1000000010000000"},{parent:"gbal",note:"同一個打法換 ride，慢歌進副歌最省力的做法。"}),
+  C("gspace","留白",["慢歌","橋段","一拍一下"],68,
+    {hh:"1000000010000000",kk:"1000000000000000"},{note:"幾乎不打。禱告、獨白段落。"}),
+  C("gintro","Intro 輕進",["慢歌","Intro/Outro","一拍一下"],76,
+    {hh:"1000100010001000",kk:"1000000000000000"},{note:"從最少開始，留空間給主領起頭。"}),
+  // 過門
+  C("f1","一拍 tom 下行",["中板","主歌"],92,{tm:"0000000000001123"},{kind:"fill",note:"最短的過門，換段落不夠時間就用它。"}),
+  C("f2","兩拍 小鼓十六分",["中板","副歌"],92,{sn:"0000000012212211"},{kind:"fill"}),
+  C("f3","整小節 tom 下行",["中板","副歌"],92,{sn:"1100000000000000",tm:"0011112222333333",kk:"1000000000000000"},{kind:"fill",note:"推進副歌用；由高到低把力度往上帶。"}),
+  C("f4","大鼓小鼓交替",["快歌","副歌"],100,{sn:"0000000010101010",kk:"0000000001010101"},{kind:"fill"}),
+  C("f5","簡單收尾（開鈸）",["慢歌","Intro/Outro"],76,{sn:"0000000010001000",oh:"0000000000000001"},{kind:"fill",note:"收歌、或安靜段落之間的接點。"}),
+]; }
+
+function defaultData(){ return {
+  v:4, me:"", currentId:"s1", patterns:seedCards(),
+  songs:[{ id:"s1", name:"範例：把這首改成你的歌", author:"", ytUrl:"", videoId:"",
     sections:[
-      { id:"a", label:"Intro",   note:"輕進，hi-hat 為主", groove:mkPat(90,{hh:[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],kk:[1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0]}), fill:null },
-      { id:"b", label:"Verse 1", note:"", groove:structuredClone(ROCK), fill:null },
-      { id:"c", label:"Verse 2", note:"小鼓加 ghost note，末尾過門（tom 由高到低）推進副歌", groove:structuredClone(ROCK_GHOST), fill:structuredClone(FILL) },
-      { id:"d", label:"副歌",     note:"開 ride、力度上來", groove:structuredClone(CHORUS), fill:null },
-      { id:"e", label:"Bridge",  note:"留白", groove:emptyPattern(), fill:null },
-    ]
-  }]
-};
+      { id:"a", label:"Intro",   note:"留空間給主領起頭", grooveRef:"gintro", fillRef:null },
+      { id:"b", label:"Verse 1", note:"", grooveRef:"g8", fillRef:null },
+      { id:"c", label:"Verse 2", note:"末尾過門推進副歌", grooveRef:"g8g", fillRef:"f3" },
+      { id:"d", label:"副歌",     note:"開 ride、力度上來", grooveRef:"gcr", fillRef:null },
+      { id:"e", label:"Bridge",  note:"留白", grooveRef:"gspace", fillRef:null },
+    ]}]
+}; }
 
 // ---------- 儲存 ----------
-let data = load();
-function migrate(d){ d.songs.forEach(s=> s.sections.forEach(sec=>{ sec.groove=normPattern(sec.groove); sec.fill=sec.fill?normPattern(sec.fill):null; if(!("note" in sec)) sec.note=""; })); return d; }
-function load(){ try{ const d=JSON.parse(localStorage.getItem("drumchart_v3")); if(d&&d.songs) return migrate(d); }catch(e){} return structuredClone(defaultData); }
-function save(){ localStorage.setItem("drumchart_v3", JSON.stringify(data)); }
-function curSong(){ return data.songs.find(s=>s.id===data.currentId) || data.songs[0]; }
+const KEY="drumchart_v4", KEY_V3="drumchart_v3";
 function uid(){ return Math.random().toString(36).slice(2,8); }
 function escapeHtml(s){ return String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function hasHits(p){ return !!p && LANE_KEYS.some(k=>p[k]&&p[k].some(Boolean)); }
+function normPattern(p){ const fix=a=>{ a=Array.isArray(a)?a.slice(0,16):[]; while(a.length<16)a.push(0); return a.map(n=>n|0); };
+  const o=emptyPattern(); if(p&&typeof p==="object"){ o.tempo=p.tempo||90; LANE_KEYS.forEach(k=>{ if(Array.isArray(p[k])) o[k]=fix(p[k]); }); } return o; }
+function normCard(c){ return { id:c.id||uid(), name:c.name||"未命名", kind:c.kind==="fill"?"fill":"groove",
+  tags:Array.isArray(c.tags)?c.tags.filter(t=>ALL_TAGS.includes(t)):[], parent:c.parent||null,
+  note:c.note||"", author:c.author||"", pattern:normPattern(c.pattern) }; }
+
+function migrate(d){
+  d.patterns=(d.patterns||[]).map(normCard);
+  const ids=new Set(d.patterns.map(c=>c.id));
+  d.patterns.forEach(c=>{ if(c.parent&&!ids.has(c.parent)) c.parent=null; });   // 父卡被刪掉就升為基礎卡
+  d.songs=(d.songs||[]).map(s=>({ id:s.id||uid(), name:s.name||"未命名", author:s.author||"", ytUrl:s.ytUrl||"", videoId:s.videoId||"",
+    sections:(s.sections||[]).map(x=>({ id:x.id||uid(), label:x.label||"段落", note:x.note||"",
+      grooveRef:ids.has(x.grooveRef)?x.grooveRef:null, fillRef:ids.has(x.fillRef)?x.fillRef:null })) }));
+  if(!d.songs.length) d.songs=defaultData().songs;
+  if(!d.songs.some(s=>s.id===d.currentId)) d.currentId=d.songs[0].id;
+  d.v=4; return d;
+}
+// v3：pattern 藏在段落裡 → 抽出來變成庫裡的卡
+function fromV3(d3){
+  const patterns=seedCards();
+  function addP(p,kind,name){ const c=normCard({id:uid(),name,kind,tags:[],pattern:p}); patterns.push(c); return c.id; }
+  const songs=(d3.songs||[]).map(s=>({ id:s.id||uid(), name:s.name||"未命名", author:s.author||"", ytUrl:s.ytUrl||"", videoId:s.videoId||"",
+    sections:(s.sections||[]).map(sec=>({ id:sec.id||uid(), label:sec.label||"段落", note:sec.note||"",
+      grooveRef: hasHits(sec.groove)? addP(sec.groove,"groove",(s.name||"舊曲")+"・"+(sec.label||"段落")) : null,
+      fillRef:   hasHits(sec.fill)  ? addP(sec.fill,"fill",(s.name||"舊曲")+"・"+(sec.label||"段落")+" 過門") : null })) }));
+  return migrate({ v:4, me:d3.me||"", currentId:d3.currentId, patterns, songs });
+}
+function load(){
+  try{ const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.patterns) return migrate(d); }catch(e){}
+  try{ const d3=JSON.parse(localStorage.getItem(KEY_V3)); if(d3&&d3.songs) return fromV3(d3); }catch(e){}
+  return defaultData();
+}
+let data=load();
+function save(){ localStorage.setItem(KEY, JSON.stringify(data)); }
+function cardById(id){ return data.patterns.find(c=>c.id===id)||null; }
+function childrenOf(id){ return data.patterns.filter(c=>c.parent===id); }
+function familyOf(c){ const rootId=c.parent||c.id, root=cardById(rootId);
+  return (root?[root]:[]).concat(childrenOf(rootId)).filter(x=>x.id!==c.id); }
+function curSong(){ return data.songs.find(s=>s.id===data.currentId)||data.songs[0]; }
 
 // ---------- Web Audio 鼓聲 ----------
-// 使用 GrooveScribe 的真鼓取樣（與外連版同音色）
+// 使用 GrooveScribe 的真鼓取樣
 let actx=null;
 function AC(){ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); return actx; }
 const SAMPLE_DIR="samples/";
@@ -210,7 +443,7 @@ const SAMPLE_FILES={ kick:"kick.mp3", snare:"snare.mp3", ghost:"ghost.mp3",
   hatClosed:"hat-closed.mp3", hatOpen:"hat-open.mp3", ride:"ride.mp3",
   tomH:"tom-h.mp3", tomM:"tom-m.mp3", tomL:"tom-l.mp3" };
 const buffers={}; let samplesReady=false;
-const GAINS={ hatOpen:0.5 }; // 各鼓件預設音量微調（open hi-hat 偏大，壓小）
+const GAINS={ hatOpen:0.5 }; // 各鼓件音量微調（open hi-hat 偏大，壓小）
 async function loadSamples(){ const c=AC();
   await Promise.all(Object.entries(SAMPLE_FILES).map(async([k,f])=>{ try{
     const res=await fetch(encodeURI(SAMPLE_DIR+f)); const ab=await res.arrayBuffer();
@@ -222,27 +455,38 @@ function playBuf(key,t,gain){ const b=buffers[key]; if(!b) return; const c=AC();
   const src=c.createBufferSource(); src.buffer=b; const g=c.createGain(); g.gain.value=(gain==null?(GAINS[key]||1):gain);
   src.connect(g); g.connect(c.destination); src.start(t); }
 
-let trans={ timer:null, pattern:null, step:0, nextTime:0, btn:null };
-function stepDur(p){ return (60/(p.tempo||90))/4; }
-function stopTransport(){ if(trans.timer){ clearInterval(trans.timer); trans.timer=null; } if(trans.btn){ trans.btn.textContent="播放"; trans.btn.classList.remove("playing"); trans.btn=null; } }
-function playToggle(pattern, btn){
+// 播放器：一串 {p:pattern, bars:n}，循環。A/B 比較就是塞兩段進去。
+let trans={ timer:null, seq:null, idx:0, step:0, nextTime:0, btn:null, tempo:90 };
+function fireStep(p,s,t){
+  if(p.ri[s]) playBuf("ride",t);
+  if(p.oh[s]) playBuf("hatOpen",t);
+  if(p.hh[s]) playBuf("hatClosed",t);
+  if(p.tm[s]) playBuf(p.tm[s]===1?"tomH":p.tm[s]===2?"tomM":"tomL",t);
+  if(p.sn[s]===1) playBuf("snare",t); else if(p.sn[s]===2) playBuf("ghost",t);
+  if(p.kk[s]) playBuf("kick",t);
+}
+function stopTransport(){ if(trans.timer){ clearInterval(trans.timer); trans.timer=null; }
+  const el=trans.btn;
+  if(el){ if(el.tagName==="BUTTON") el.textContent=el.dataset.label||"播放"; el.classList.remove("playing"); trans.btn=null; } }
+function playSeq(items, btn, tempo){
   if(trans.timer && trans.btn===btn){ stopTransport(); return; }
   stopTransport();
+  items=(items||[]).filter(it=>it&&it.p); if(!items.length) return;
   const c=AC(); if(c.state==="suspended") c.resume();
   if(!samplesReady) loadSamples();
-  trans.pattern=pattern; trans.step=0; trans.nextTime=c.currentTime+0.06; trans.btn=btn;
-  btn.textContent="停止"; btn.classList.add("playing");
-  trans.timer=setInterval(()=>{ const cc=AC(),p=trans.pattern,dur=stepDur(p);
-    while(trans.nextTime < cc.currentTime+0.1){ const s=trans.step%16,t=trans.nextTime;
-      if(p.ri[s]) playBuf("ride",t);
-      if(p.oh[s]) playBuf("hatOpen",t);
-      if(p.hh[s]) playBuf("hatClosed",t);
-      if(p.tm[s]) playBuf(p.tm[s]===1?"tomH":p.tm[s]===2?"tomM":"tomL",t);
-      if(p.sn[s]===1) playBuf("snare",t); else if(p.sn[s]===2) playBuf("ghost",t);
-      if(p.kk[s]) playBuf("kick",t);
-      trans.nextTime+=dur; trans.step++; }
+  trans.seq=items; trans.idx=0; trans.step=0; trans.tempo=tempo||items[0].p.tempo||90;
+  trans.nextTime=c.currentTime+0.06; trans.btn=btn;
+  if(btn){ if(btn.tagName==="BUTTON"){ btn.dataset.label=btn.textContent; btn.textContent="停止"; } btn.classList.add("playing"); }
+  trans.timer=setInterval(()=>{ const cc=AC(), dur=(60/(trans.tempo||90))/4;
+    while(trans.nextTime < cc.currentTime+0.1){
+      const it=trans.seq[trans.idx], total=(it.bars||1)*16;
+      fireStep(it.p, trans.step%16, trans.nextTime);
+      trans.nextTime+=dur; trans.step++;
+      if(trans.step>=total){ trans.step=0; trans.idx=(trans.idx+1)%trans.seq.length; }
+    }
   }, 25);
 }
+function playToggle(pattern, btn){ playSeq([{p:pattern,bars:1}], btn, pattern.tempo); }
 
 // ---------- YouTube（選配參考） ----------
 let player=null, apiReady=false, pendingApi=null, pendingRef="";
@@ -253,56 +497,7 @@ function ytId(url){ const m=String(url).match(/(?:v=|youtu\.be\/|embed\/|shorts\
 function resetVideoWrap(){ document.getElementById("videowrap").innerHTML='<div class="placeholder">貼 YouTube 連結可當參考<br>（現場曲速可能不同，僅供聽 feel）</div>'; player=null; }
 function maybeMountRef(){ const det=document.getElementById("refvid"); if(det.open && pendingRef && !player) mountPlayer(pendingRef); }
 
-// ---------- 匯出入 ----------
-function normPattern(p){ const fix=a=>{ a=Array.isArray(a)?a.slice(0,16):[]; while(a.length<16)a.push(0); return a.map(n=>n|0); };
-  const o=emptyPattern(); if(p&&typeof p==="object"){ o.tempo=p.tempo||90; LANE_KEYS.forEach(k=>{ if(Array.isArray(p[k])) o[k]=fix(p[k]); }); } return o; }
-function songPayload(s){ return { name:s.name, author:s.author, ytUrl:s.ytUrl, videoId:s.videoId, sections:s.sections }; }
-function importSong(payload, suffix){
-  const s={ id:uid(), name:(payload.name||"未命名")+(suffix||""), author:payload.author||"", ytUrl:payload.ytUrl||"", videoId:payload.videoId||"",
-    sections:(payload.sections||[]).map(x=>({ id:uid(), label:x.label||"段落", note:x.note||"", groove:normPattern(x.groove), fill: x.fill?normPattern(x.fill):null })) };
-  data.songs.push(s); data.currentId=s.id; activeId=null; save(); renderAll();
-}
-function downloadJson(obj, filename){ const blob=new Blob([JSON.stringify(obj)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); }
-
-// ---------- 渲染 ----------
-let activeId=null;
-function renderTabs(){
-  const el=document.getElementById("songtabs"); el.innerHTML="";
-  data.songs.forEach(s=>{ const b=document.createElement("button"); b.className="songtab"+(s.id===data.currentId?" active":""); b.textContent=s.name;
-    b.onclick=()=>{ stopTransport(); data.currentId=s.id; activeId=null; save(); renderAll(); }; el.appendChild(b); });
-  const add=document.createElement("button"); add.className="songtab add"; add.textContent="＋ 新增歌曲";
-  add.onclick=()=>{ const s={id:uid(),name:"新歌曲",author:data.me||"",ytUrl:"",videoId:"",sections:[]}; data.songs.push(s); data.currentId=s.id; activeId=null; save(); renderAll(); };
-  el.appendChild(add);
-}
-function renderSong(){
-  const s=curSong();
-  document.getElementById("songName").value=s.name||"";
-  document.getElementById("author").value=s.author||data.me||"";
-  document.getElementById("ytUrl").value=s.ytUrl||"";
-  pendingRef=s.videoId||""; resetVideoWrap(); maybeMountRef();
-}
-function renderSections(){
-  const ul=document.getElementById("sections"); ul.innerHTML="";
-  const secs=curSong().sections;
-  if(!secs.length){ ul.innerHTML='<li style="color:var(--muted);list-style:none;padding:6px;">還沒有段落，按下面「新增段落」</li>'; return; }
-  secs.forEach((sec,idx)=>{
-    const li=document.createElement("li"); li.className="section"+(sec.id===activeId?" active":"");
-    li.innerHTML=`<span class="ord">
-        <button data-up="${idx}" ${idx===0?"disabled":""}>▲</button>
-        <button data-down="${idx}" ${idx===secs.length-1?"disabled":""}>▼</button></span>
-      <span><span class="seclabel">${escapeHtml(sec.label)}</span><br>
-        <span class="secmeta"><span class="${hasHits(sec.groove)?"has":""}">節奏${hasHits(sec.groove)?"✓":"—"}</span> · <span class="${hasHits(sec.fill)?"has":""}">過門${hasHits(sec.fill)?"✓":"—"}</span>${sec.note?" · 備註":""}</span></span>
-      <span class="secbtns"><button data-edit="${sec.id}">編輯</button></span>`;
-    li.onclick=(e)=>{ if(e.target.dataset.edit!==undefined||e.target.dataset.up!==undefined||e.target.dataset.down!==undefined) return; selectSection(sec.id); };
-    li.querySelector("[data-edit]").onclick=(e)=>{ e.stopPropagation(); openSecDialog(sec.id); };
-    li.querySelector("[data-up]").onclick=(e)=>{ e.stopPropagation(); move(idx,-1); };
-    li.querySelector("[data-down]").onclick=(e)=>{ e.stopPropagation(); move(idx,1); };
-    ul.appendChild(li);
-  });
-}
-function move(idx,dir){ const a=curSong().sections; const j=idx+dir; if(j<0||j>=a.length) return; [a[idx],a[j]]=[a[j],a[idx]]; save(); renderSections(); }
-
-// ---------- 格子編輯器 ----------
+// ---------- 譜的畫法 ----------
 const LANES=[["ri","Ride"],["oh","Open HH"],["hh","Hi-hat"],["tm","Tom"],["sn","Snare"],["kk","Kick"]];
 function cellGlyph(lane,v){ if(v===0) return "";
   if(lane==="ri"||lane==="hh") return "×";
@@ -311,56 +506,336 @@ function cellGlyph(lane,v){ if(v===0) return "";
   if(lane==="sn") return v===1?"●":"○";
   if(lane==="kk") return "●";
   return ""; }
-function cellClass(lane,v,s){ return "cell c-"+lane+(v?" on":"")+(lane==="sn"&&v===2?" ghost":"")+(s%4===0?" beat":""); }
+function cellMods(lane,v,s){ return " c-"+lane+(v?" on":"")+(lane==="sn"&&v===2?" ghost":"")+(s%4===0?" beat":""); }
 function cycle(lane,v){ if(lane==="sn") return (v+1)%3; if(lane==="tm") return (v+1)%4; return v?0:1; }
-function gridHtml(p,kind){
-  let h=`<div class="gridscroll"><div class="grid" data-kind="${kind}">`;
-  for(const [key,label] of LANES){ h+=`<div class="lane-label">${label}</div>`;
-    for(let s=0;s<16;s++){ const v=p[key][s]; h+=`<div class="${cellClass(key,v,s)}" data-lane="${key}" data-step="${s}">${cellGlyph(key,v)}</div>`; } }
-  return h+`</div></div>`;
+
+// 卡片上的唯讀小譜：只畫有打的軌，卡片才不會被空白軌撐高
+function miniGridHtml(p){
+  const used=LANES.filter(([k])=>p[k].some(Boolean));
+  if(!used.length) return '<div class="mempty">（還沒點譜，按「編輯」開始）</div>';
+  let h='<div class="mini"><div class="mgrid"><div class="mn"></div>';
+  for(let s=0;s<16;s++) h+=`<div class="mn${s%4===0?" beat":""}">${s%4===0?(s/4+1):""}</div>`;
+  for(const [key,label] of used){ h+=`<div class="ml">${label}</div>`;
+    for(let s=0;s<16;s++){ const v=p[key][s]; h+=`<div class="mc${cellMods(key,v,s)}">${cellGlyph(key,v)}</div>`; } }
+  return h+"</div></div>";
 }
-function blockHtml(title,cls,kind,p,removable){
-  return `<div class="gp-block">
-    <div class="gp-head"><span class="gp-title ${cls}">${title}</span>
-      <span class="gp-ctrl">速度 <input type="number" class="tempo" data-kind="${kind}" value="${p.tempo||90}" min="40" max="240"> BPM
-        <button class="play" data-kind="${kind}">播放</button>
-        ${removable?'<button class="rmfill">移除過門</button>':""}</span></div>
-    ${gridHtml(p,kind)}
-    <div class="legend">點格子切換；小鼓連點輪 ●重音→○ghost→空白；Tom 連點輪 H→M→L→空白。　× = hi-hat/ride　○ = open hi-hat　H/M/L = tom 高中低　● = 小鼓重音/大鼓　空白 = 休止</div>
+// 彈窗裡的可編輯大格子：六軌全開，才知道還能加什麼
+function gridHtml(p){
+  let h='<div class="gridscroll"><div class="grid">';
+  for(const [key,label] of LANES){ h+=`<div class="lane-label">${label}</div>`;
+    for(let s=0;s<16;s++){ const v=p[key][s]; h+=`<div class="cell${cellMods(key,v,s)}" data-lane="${key}" data-step="${s}">${cellGlyph(key,v)}</div>`; } }
+  return h+"</div></div>";
+}
+const LEGEND='<div class="legend">點格子切換；小鼓連點輪 ●重音→○ghost→空白；Tom 連點輪 H→M→L→空白。　× = hi-hat/ride　○ = open hi-hat　H/M/L = tom 高中低　● = 小鼓重音/大鼓　空白 = 休止</div>';
+
+// 一張卡的完整外觀（名稱＋標籤＋譜＋備註），庫、挑卡彈窗、曲序都共用
+function cardHtml(c, opt){ opt=opt||{};
+  const btns = opt.buttons===undefined ? `
+      ${c.parent?`<button data-ab="${c.id}">對照</button>`:""}
+      <button data-variant="${c.id}">變體</button>
+      <button data-edit="${c.id}">編輯</button>` : opt.buttons;
+  return `<div class="dcard${c.parent&&!opt.flat?" variant":""}" data-card="${c.id}">
+    <div class="dhead">
+      <span class="dtitle"><span class="dname">${escapeHtml(c.name)}</span><span class="dbpm">${c.pattern.tempo}</span></span>
+      <span class="dbtns">${btns}</span></div>
+    ${(()=>{ const kids=opt.showVariants?childrenOf(c.id).length:0;
+        const bits=c.tags.slice(); if(kids) bits.push(kids+" 個變體");
+        return bits.length?`<div class="dmeta">${escapeHtml(bits.join(" · "))}</div>`:""; })()}
+    ${miniGridHtml(c.pattern)}
+    ${c.note?`<div class="dnote">${escapeHtml(c.note)}</div>`:""}
   </div>`;
 }
-function selectSection(id){
-  stopTransport(); activeId=id;
-  const sec=curSong().sections.find(x=>x.id===id); if(!sec) return;
-  const slot=document.getElementById("editor"); let html="";
-  if(sec.note) html+=`<div class="note">備註：${escapeHtml(sec.note)}</div>`;
-  html+=blockHtml("節奏 GROOVE","","groove",sec.groove,false);
-  if(sec.fill) html+=blockHtml("過門 FILL","fill","fill",sec.fill,true);
-  else html+='<div class="gp-block"><button class="addfill">＋ 新增過門</button></div>';
-  slot.innerHTML=html;
-  wireEditor(sec);
-  renderSections();
-}
-function patOf(sec,kind){ return kind==="fill"?sec.fill:sec.groove; }
-function wireEditor(sec){
-  const slot=document.getElementById("editor");
-  slot.querySelectorAll(".cell").forEach(cell=>{
-    cell.onclick=()=>{ const kind=cell.closest(".grid").dataset.kind, lane=cell.dataset.lane, s=+cell.dataset.step;
-      const p=patOf(sec,kind); p[lane][s]=cycle(lane,p[lane][s]); save();
-      const v=p[lane][s]; cell.className=cellClass(lane,v,s); cell.textContent=cellGlyph(lane,v); renderSections(); };
-  });
-  slot.querySelectorAll(".tempo").forEach(inp=>{
-    inp.onchange=()=>{ const p=patOf(sec,inp.dataset.kind); p.tempo=Math.min(240,Math.max(40,+inp.value||90)); inp.value=p.tempo; save(); };
-  });
-  slot.querySelectorAll(".play").forEach(btn=>{ btn.onclick=()=>playToggle(patOf(sec,btn.dataset.kind), btn); });
-  const addf=slot.querySelector(".addfill"); if(addf) addf.onclick=()=>{ sec.fill=emptyPattern(); save(); selectSection(sec.id); };
-  const rmf=slot.querySelector(".rmfill"); if(rmf) rmf.onclick=()=>{ if(confirm("移除這段的過門？")){ sec.fill=null; save(); selectSection(sec.id); } };
+// 把 cardHtml 裡的按鈕接起來（對照 / 做變體 / 編輯）；opt.playOnClick：整張卡就是播放鍵
+function wireCardButtons(root,opt){ opt=opt||{};
+  root.querySelectorAll("[data-play]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
+    const c=cardById(b.dataset.play); if(c) playToggle(c.pattern,b); }; });
+  if(opt.playOnClick) root.querySelectorAll(".dcard").forEach(el=>{ el.onclick=e=>{
+    if(e.target.closest("button")) return;
+    const c=cardById(el.dataset.card); if(c) playToggle(c.pattern,el); }; });
+  root.querySelectorAll("[data-ab]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
+    const c=cardById(b.dataset.ab), base=c&&cardById(c.parent); if(!c||!base) return;
+    // 兩張都用基礎卡的速度，差別才聽得出來
+    playSeq([{p:base.pattern,bars:2},{p:c.pattern,bars:2}], b, base.pattern.tempo); }; });
+  root.querySelectorAll("[data-variant]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
+    const c=cardById(b.dataset.variant); if(c) makeVariant(c); }; });
+  root.querySelectorAll("[data-edit]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
+    openCardDialog(b.dataset.edit); }; });
 }
 
-function renderAll(){ renderTabs(); renderSong(); renderSections();
-  document.getElementById("editor").innerHTML='<div class="empty">點上面任一段落，這裡會出現可編輯的節奏與過門格子</div>'; }
+// ---------- 節奏庫：篩選與卡片牆 ----------
+let filt={ kind:"groove", q:"", tags:[] };
+function renderFilters(){
+  const el=document.getElementById("filters");
+  el.innerHTML=TAG_GROUPS.map(g=>`<div class="taggroup"><div class="gl">${g.label}</div><div class="chips">`+
+    g.tags.map(t=>`<span class="chip${filt.tags.includes(t)?" on":""}" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join("")+
+    "</div></div>").join("");
+  el.querySelectorAll("[data-tag]").forEach(ch=>{ ch.onclick=()=>{ const t=ch.dataset.tag;
+    filt.tags = filt.tags.includes(t) ? filt.tags.filter(x=>x!==t) : filt.tags.concat(t);
+    renderFilters(); renderGallery(); }; });
+}
+function matches(c){
+  if(c.kind!==filt.kind) return false;
+  if(filt.q){ const q=filt.q.toLowerCase();
+    if(!((c.name+" "+c.note+" "+c.tags.join(" ")).toLowerCase().includes(q))) return false; }
+  for(const g of TAG_GROUPS){   // 組內 OR、組間 AND
+    const want=filt.tags.filter(t=>TAG_GROUP_OF[t]===g.key);
+    if(want.length && !want.some(t=>c.tags.includes(t))) return false;
+  }
+  return true;
+}
+// 首頁每個分區最多放幾張代表卡
+const MAX_PER_SECTION=3;
+// 過門沒有「打法特徵」標籤，所以它的預設分區軸是「適用段落」
+function defaultAxis(kind){ return kind==="fill" ? "part" : "feel"; }
+let axis=defaultAxis("groove");
+function filtering(){ return !!(filt.q || filt.tags.length); }
 
-// ---------- 段落彈窗（名稱／備註） ----------
+function renderGallery(){
+  const el=document.getElementById("gallery"), head=document.getElementById("phright"),
+        title=document.getElementById("galleryTitle");
+  if(filtering()){
+    const n=renderWall(el);
+    title.textContent="篩選結果";
+    head.innerHTML=`<span>${n} 張</span><button id="backBrowse">回到分類瀏覽</button>`;
+    head.querySelector("#backBrowse").onclick=()=>{ filt.q=""; filt.tags=[];
+      document.getElementById("searchBox").value=""; renderFilters(); renderGallery(); };
+  } else {
+    const n=renderBrowse(el);
+    title.textContent="分類瀏覽";
+    head.innerHTML=`<span>共 ${n} 張</span>　分區依據
+      <select id="axisSel">${TAG_GROUPS.map(g=>`<option value="${g.key}"${g.key===axis?" selected":""}>${g.label}</option>`).join("")}</select>`;
+    head.querySelector("#axisSel").onchange=e=>{ axis=e.target.value; renderGallery(); };
+  }
+  wireCardButtons(el,{playOnClick:true});
+}
+
+// 分區瀏覽：把分類法直接變成瀏覽結構，一眼看到「節奏分成哪幾類」
+function renderBrowse(el){
+  const group=TAG_GROUPS.find(g=>g.key===axis) || TAG_GROUPS[2];
+  const pool=data.patterns.filter(c=>c.kind===filt.kind);
+  const sect=(title,all,tag)=>{
+    let reps=all.filter(c=>!c.parent).slice(0,MAX_PER_SECTION);
+    if(!reps.length) reps=all.slice(0,MAX_PER_SECTION);   // 這一類只有變體時就秀變體
+    return `<section class="sect">
+      <div class="secthead"><h3>${escapeHtml(title)}</h3><span class="sectn">${all.length} 張</span>
+        ${tag&&all.length>reps.length?`<button data-all="${escapeHtml(tag)}">看全部 ▸</button>`:""}</div>
+      <div class="sectgrid">${reps.map(c=>cardHtml(c,{flat:true,showVariants:true})).join("")}</div>
+    </section>`;
+  };
+  let html="";
+  group.tags.forEach(t=>{
+    const all=pool.filter(c=>c.tags.includes(t));
+    if(all.length) html+=sect(t,all,t);            // 空的分區直接不顯示，庫小時才不會一片空白
+  });
+  const rest=pool.filter(c=>!c.tags.some(t=>group.tags.includes(t)));
+  if(rest.length) html+=sect("未分類",rest,null);
+  el.innerHTML = html || '<div class="empty">這個庫還沒有卡片。按「＋ 新增卡片」建一張。</div>';
+  el.querySelectorAll("[data-all]").forEach(b=>{ b.onclick=()=>{ stopTransport();
+    filt.tags=[b.dataset.all]; renderFilters(); renderGallery(); window.scrollTo({top:0,behavior:"smooth"}); }; });
+  return pool.length;
+}
+
+// 平鋪卡片牆：篩選／搜尋時用，家族連著變體一起顯示
+function renderWall(el){
+  const bases=data.patterns.filter(c=>!c.parent && c.kind===filt.kind);
+  let html="", n=0;
+  bases.forEach(b=>{
+    const kids=childrenOf(b.id).filter(matches), bm=matches(b);
+    if(!bm && !kids.length) return;
+    html+='<div class="fam">'+cardHtml(b)
+        +(kids.length?'<div class="varlist">'+kids.map(k=>cardHtml(k)).join("")+"</div>":"")+"</div>";
+    n+=1+kids.length;
+  });
+  el.innerHTML = html ? '<div class="wall">'+html+'</div>'
+    : '<div class="empty">沒有符合的卡片。放寬篩選，或按「＋ 新增卡片」建一張。</div>';
+  return n;
+}
+function makeVariant(c){
+  const base=c.parent||c.id;   // 變體只做一層，不做巢狀
+  const n={ id:uid(), name:c.name+" 變體", kind:c.kind, tags:c.tags.slice(), parent:base, note:"", author:data.me||"",
+    pattern:structuredClone(c.pattern) };
+  data.patterns.push(n); save(); renderGallery(); openCardDialog(n.id);
+}
+
+// ---------- 卡片編輯彈窗 ----------
+let editingCardId=null;
+function openCardDialog(id){
+  const c=cardById(id); if(!c) return;
+  stopTransport(); editingCardId=id;
+  const fam=familyOf(c), kids=childrenOf(c.id);
+  document.getElementById("cardDlgBody").innerHTML=`
+    <h3>${c.kind==="fill"?"過門":"節奏"}卡${c.parent?"（變體）":""}</h3>
+    <label>名稱</label><input id="cName" value="${escapeHtml(c.name)}" placeholder="這張卡叫什麼" />
+    <label>標籤（點一下切換）</label>
+    <div class="chips" id="cTags">${ALL_TAGS.map(t=>`<span class="chip${c.tags.includes(t)?" on":""}" data-t="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join("")}</div>
+    <label>備註：什麼時候用？要注意什麼？</label>
+    <textarea id="cNote" rows="2">${escapeHtml(c.note)}</textarea>
+    <div class="gp-head"><span class="gp-title ${c.kind==="fill"?"fill":""}">${c.kind==="fill"?"過門 FILL":"節奏 GROOVE"}</span>
+      <span class="gp-ctrl">速度 <input type="number" class="tempo" id="cTempo" value="${c.pattern.tempo}" min="40" max="240"> BPM
+        <button id="cPlay">播放</button></span></div>
+    ${gridHtml(c.pattern)}${LEGEND}
+    <div class="family">
+      <h3>變體</h3>
+      ${kids.length?`<div class="tip" style="margin:0 0 8px;">這張底下有 ${kids.length} 個變體。</div>`:""}
+      <div class="abrow">
+        <button id="mkVariant">＋ 做一個變體</button>
+        ${fam.length?`<select id="abSel">${fam.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join("")}</select>
+          <button id="abPlay">輪流播（聽差別）</button>`:`<span class="tip" style="margin:0;">還沒有同家族的卡可以比較</span>`}
+      </div>
+    </div>
+    <div class="dlg-btns">
+      <span class="dbtns">
+        <button id="cCopy">複製為新卡</button>
+        <button id="cLink">複製分享連結</button>
+        <button id="cDel" class="danger">刪除這張卡</button>
+      </span>
+      <button class="primary" id="cClose">完成</button>
+    </div>`;
+  wireCardDialog(c);
+  document.getElementById("cardDialog").showModal();
+}
+function wireCardDialog(c){
+  const d=document.getElementById("cardDlgBody");
+  d.querySelectorAll(".cell").forEach(cell=>{
+    cell.onclick=()=>{ const lane=cell.dataset.lane, s=+cell.dataset.step;
+      c.pattern[lane][s]=cycle(lane,c.pattern[lane][s]); save();
+      const v=c.pattern[lane][s]; cell.className="cell"+cellMods(lane,v,s); cell.textContent=cellGlyph(lane,v); };
+  });
+  d.querySelector("#cName").onchange=e=>{ c.name=e.target.value.trim()||"未命名"; save(); };
+  d.querySelector("#cNote").onchange=e=>{ c.note=e.target.value.trim(); save(); };
+  d.querySelector("#cTempo").onchange=e=>{ c.pattern.tempo=Math.min(240,Math.max(40,+e.target.value||90)); e.target.value=c.pattern.tempo; save(); };
+  d.querySelector("#cPlay").onclick=e=>playToggle(c.pattern,e.currentTarget);
+  d.querySelectorAll("#cTags .chip").forEach(ch=>{ ch.onclick=()=>{ const t=ch.dataset.t;
+    c.tags = c.tags.includes(t) ? c.tags.filter(x=>x!==t) : c.tags.concat(t);
+    ch.classList.toggle("on"); save(); }; });
+  d.querySelector("#mkVariant").onclick=()=>{ closeCardDialog(); makeVariant(c); };
+  const ab=d.querySelector("#abPlay");
+  if(ab) ab.onclick=e=>{ const other=cardById(d.querySelector("#abSel").value); if(!other) return;
+    playSeq([{p:c.pattern,bars:2},{p:other.pattern,bars:2}], e.currentTarget, c.pattern.tempo); };
+  d.querySelector("#cCopy").onclick=()=>{
+    const n={ id:uid(), name:c.name+"（副本）", kind:c.kind, tags:c.tags.slice(), parent:null, note:c.note, author:data.me||"",
+      pattern:structuredClone(c.pattern) };
+    data.patterns.push(n); save(); closeCardDialog(); openCardDialog(n.id);
+  };
+  d.querySelector("#cLink").onclick=()=>shareCardLink(c);
+  d.querySelector("#cDel").onclick=()=>deleteCard(c);
+  d.querySelector("#cClose").onclick=()=>closeCardDialog();
+}
+function closeCardDialog(){ stopTransport(); document.getElementById("cardDialog").close();
+  editingCardId=null; renderGallery(); renderSections(); }
+document.getElementById("cardDialog").addEventListener("close", ()=>{ stopTransport(); renderGallery(); renderSections(); });
+function deleteCard(c){
+  const kids=childrenOf(c.id);
+  const used=data.songs.flatMap(s=>s.sections).filter(x=>x.grooveRef===c.id||x.fillRef===c.id).length;
+  let msg="刪除「"+c.name+"」？";
+  if(kids.length) msg+="\n底下 "+kids.length+" 個變體會變成獨立的基礎卡。";
+  if(used) msg+="\n有 "+used+" 個段落正在用這張，會變成空的。";
+  if(!confirm(msg)) return;
+  kids.forEach(k=>k.parent=null);
+  data.songs.forEach(s=>s.sections.forEach(x=>{ if(x.grooveRef===c.id) x.grooveRef=null; if(x.fillRef===c.id) x.fillRef=null; }));
+  data.patterns=data.patterns.filter(x=>x.id!==c.id);
+  save(); closeCardDialog();
+}
+
+// ---------- 分享 ----------
+// 單張卡塞得進網址（一張卡的 JSON 很小）；整庫仍走 .json 檔
+function encCard(c){ const o={n:c.name,k:c.kind,t:c.tags,o:c.note,m:c.pattern.tempo,l:LANE_KEYS.map(k=>c.pattern[k].join(""))};
+  return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
+function decCard(s){ s=String(s).replace(/-/g,"+").replace(/_/g,"/");
+  const o=JSON.parse(decodeURIComponent(escape(atob(s))));
+  const lanes={}; LANE_KEYS.forEach((k,i)=>lanes[k]=(o.l&&o.l[i])||"0000000000000000");
+  return normCard({ id:uid(), name:o.n, kind:o.k, tags:o.t, note:o.o, pattern:mkPat(o.m||90,lanes) }); }
+function shareCardLink(c){
+  const url=location.origin+location.pathname+"#c="+encCard(c);
+  const done=()=>alert("已複製分享連結，貼給其他鼓手就能直接看到＆聽到這張卡。");
+  if(navigator.clipboard) navigator.clipboard.writeText(url).then(done,()=>prompt("複製這段網址：",url));
+  else prompt("複製這段網址：",url);
+}
+function takeHashCard(){
+  const m=location.hash.match(/^#c=(.+)$/); if(!m) return;
+  try{ const c=decCard(m[1]);
+    if(confirm("有人分享了一張卡「"+c.name+"」，加進你的節奏庫？")){ data.patterns.push(c); save(); filt.kind=c.kind; }
+  }catch(e){ alert("這個分享連結讀不出來"); }
+  history.replaceState(null,"",location.pathname);
+}
+function downloadJson(obj, filename){ const blob=new Blob([JSON.stringify(obj)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); }
+function cardPayload(c){ return { id:c.id, name:c.name, kind:c.kind, tags:c.tags, parent:c.parent, note:c.note, author:c.author, pattern:c.pattern }; }
+function songPayload(s){
+  const ids=new Set(); s.sections.forEach(x=>{ if(x.grooveRef) ids.add(x.grooveRef); if(x.fillRef) ids.add(x.fillRef); });
+  Array.from(ids).forEach(id=>{ const c=cardById(id); if(c&&c.parent) ids.add(c.parent); });  // 連父卡一起打包
+  return { type:"drumchart-song", name:s.name, author:s.author, ytUrl:s.ytUrl, videoId:s.videoId,
+    sections:s.sections.map(x=>({ label:x.label, note:x.note, grooveRef:x.grooveRef, fillRef:x.fillRef })),
+    patterns:Array.from(ids).map(cardById).filter(Boolean).map(cardPayload) };
+}
+function mergeCards(list){ let added=0;   // 同 id 已存在就沿用舊的，不重複塞
+  (list||[]).forEach(raw=>{ const c=normCard(raw); if(cardById(c.id)) return; data.patterns.push(c); added++; });
+  return added; }
+function importSong(payload, suffix){
+  mergeCards(payload.patterns);
+  const ids=new Set(data.patterns.map(c=>c.id));
+  const s={ id:uid(), name:(payload.name||"未命名")+(suffix||""), author:payload.author||"", ytUrl:payload.ytUrl||"", videoId:payload.videoId||"",
+    sections:(payload.sections||[]).map(x=>({ id:uid(), label:x.label||"段落", note:x.note||"",
+      grooveRef:ids.has(x.grooveRef)?x.grooveRef:null, fillRef:ids.has(x.fillRef)?x.fillRef:null })) };
+  data.songs.push(s); data.currentId=s.id; save(); renderAll();
+}
+
+// ---------- 歌曲 ----------
+function renderSongTabs(){
+  const el=document.getElementById("songtabs"); el.innerHTML="";
+  data.songs.forEach(s=>{ const b=document.createElement("button");
+    b.className="songtab"+(s.id===data.currentId?" active":""); b.textContent=s.name;
+    b.onclick=()=>{ stopTransport(); data.currentId=s.id; save(); renderSong(); renderSections(); }; el.appendChild(b); });
+  const add=document.createElement("button"); add.className="songtab add"; add.textContent="＋ 新增歌曲";
+  add.onclick=()=>{ const s={id:uid(),name:"新歌曲",author:data.me||"",ytUrl:"",videoId:"",sections:[]};
+    data.songs.push(s); data.currentId=s.id; save(); renderSong(); renderSections(); };
+  el.appendChild(add);
+}
+function renderSong(){
+  const s=curSong();
+  document.getElementById("songName").value=s.name||"";
+  document.getElementById("author").value=s.author||data.me||"";
+  document.getElementById("ytUrl").value=s.ytUrl||"";
+  pendingRef=s.videoId||""; resetVideoWrap(); maybeMountRef();
+  renderSongTabs();
+}
+// 段落裡也把譜直接畫出來——不用點進去才知道這段怎麼打
+function secPartHtml(sec,kind){
+  const ref = kind==="fill"?sec.fillRef:sec.grooveRef, c=cardById(ref), label=kind==="fill"?"過門":"節奏";
+  return `<div class="secpart"><div class="ph"><span class="k">${label}</span>
+      ${c?`<b>${escapeHtml(c.name)}</b><span class="k">${c.pattern.tempo} BPM</span>
+           <button data-play="${c.id}">試聽</button>`:`<span class="none">（未指定）</span>`}
+      <button data-pick="${kind}" data-sec="${sec.id}">${c?"換一張":"挑卡"}</button></div>
+    ${c?miniGridHtml(c.pattern):""}</div>`;
+}
+function renderSections(){
+  const ul=document.getElementById("sections"); if(!ul) return;
+  const secs=curSong().sections;
+  if(!secs.length){ ul.innerHTML='<li style="color:var(--muted);list-style:none;padding:6px;">還沒有段落，按下面「新增段落」</li>'; return; }
+  ul.innerHTML=secs.map((sec,idx)=>`<li class="section">
+      <span class="ord">
+        <button data-up="${idx}" ${idx===0?"disabled":""}>▲</button>
+        <button data-down="${idx}" ${idx===secs.length-1?"disabled":""}>▼</button></span>
+      <span><span class="seclabel">${escapeHtml(sec.label)}</span>
+        ${sec.note?`<span class="secnote"> · ${escapeHtml(sec.note)}</span>`:""}
+        ${secPartHtml(sec,"groove")}${secPartHtml(sec,"fill")}</span>
+      <span class="secbtns">
+        <button data-playsec="${sec.id}" ${sec.grooveRef?"":"disabled"}>播放整段</button>
+        <button data-editsec="${sec.id}">編輯</button></span></li>`).join("");
+  ul.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>move(+b.dataset.up,-1));
+  ul.querySelectorAll("[data-down]").forEach(b=>b.onclick=()=>move(+b.dataset.down,1));
+  ul.querySelectorAll("[data-editsec]").forEach(b=>b.onclick=()=>openSecDialog(b.dataset.editsec));
+  ul.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>openPicker(b.dataset.sec,b.dataset.pick));
+  ul.querySelectorAll("[data-play]").forEach(b=>b.onclick=()=>{ const c=cardById(b.dataset.play); if(c) playToggle(c.pattern,b); });
+  ul.querySelectorAll("[data-playsec]").forEach(b=>b.onclick=()=>{
+    const sec=secs.find(x=>x.id===b.dataset.playsec), g=cardById(sec.grooveRef), f=cardById(sec.fillRef); if(!g) return;
+    // 節奏兩小節，有過門就接一小節，循環——聽起來就像實際會打的樣子
+    playSeq(f?[{p:g.pattern,bars:2},{p:f.pattern,bars:1}]:[{p:g.pattern,bars:1}], b, g.pattern.tempo); });
+}
+function move(idx,dir){ const a=curSong().sections, j=idx+dir; if(j<0||j>=a.length) return;
+  [a[idx],a[j]]=[a[j],a[idx]]; save(); renderSections(); }
+
+// 段落彈窗（名稱／備註）
 let editingSecId=null;
 function openSecDialog(id){
   editingSecId=id; const sec=id?curSong().sections.find(x=>x.id===id):null;
@@ -374,41 +849,109 @@ document.getElementById("addSection").onclick=()=>openSecDialog(null);
 document.getElementById("secCancel").onclick=()=>document.getElementById("secDialog").close();
 document.getElementById("secSave").onclick=()=>{
   const label=document.getElementById("secLabel").value.trim()||"段落";
-  const note=document.getElementById("secNote").value.trim();
-  const s=curSong();
+  const note=document.getElementById("secNote").value.trim(), s=curSong();
   if(editingSecId){ const sec=s.sections.find(x=>x.id===editingSecId); sec.label=label; sec.note=note; }
-  else { const sec={ id:uid(), label, note, groove:emptyPattern(), fill:null }; s.sections.push(sec); activeId=sec.id; }
-  save(); document.getElementById("secDialog").close();
-  if(editingSecId && editingSecId===activeId) selectSection(activeId);
-  else if(!editingSecId) selectSection(activeId);
-  else renderSections();
+  else s.sections.push({ id:uid(), label, note, grooveRef:null, fillRef:null });
+  save(); document.getElementById("secDialog").close(); renderSections();
 };
 document.getElementById("secDelete").onclick=()=>{
   const s=curSong(); s.sections=s.sections.filter(x=>x.id!==editingSecId);
-  if(activeId===editingSecId){ activeId=null; stopTransport(); }
-  save(); document.getElementById("secDialog").close(); renderAll();
+  stopTransport(); save(); document.getElementById("secDialog").close(); renderSections();
 };
 
-// ---------- 左側控制 ----------
-document.getElementById("loadYt").onclick=()=>{ const url=document.getElementById("ytUrl").value.trim(); const id=ytId(url); const s=curSong(); s.ytUrl=url; s.videoId=id; save(); if(id){ pendingRef=id; resetVideoWrap(); document.getElementById("refvid").open=true; maybeMountRef(); } else alert("看不出 YouTube 影片 ID"); };
-document.getElementById("refvid").addEventListener("toggle", maybeMountRef);
-document.getElementById("renameSong").onclick=()=>{ const n=document.getElementById("songName").value.trim(); if(n){ curSong().name=n; save(); renderTabs(); } };
-document.getElementById("author").onchange=(e)=>{ curSong().author=e.target.value.trim(); data.me=e.target.value.trim(); save(); };
-document.getElementById("delSong").onclick=()=>{ if(data.songs.length<=1){ alert("至少留一首"); return; } if(!confirm("刪除這首？")) return; stopTransport(); data.songs=data.songs.filter(s=>s.id!==data.currentId); data.currentId=data.songs[0].id; activeId=null; save(); renderAll(); };
+// 挑卡彈窗：一樣把譜畫出來，挑的時候看得到
+let picking={ secId:null, kind:"groove", q:"" };
+function openPicker(secId,kind){
+  picking={ secId, kind, q:"" };
+  document.getElementById("pickTitle").textContent=kind==="fill"?"挑一張過門":"挑一張節奏";
+  document.getElementById("pickSearch").value="";
+  renderPicker(); document.getElementById("pickDialog").showModal();
+}
+function renderPicker(){
+  const el=document.getElementById("picklist"), q=picking.q.toLowerCase();
+  const list=data.patterns.filter(c=>c.kind===picking.kind &&
+    (!q || (c.name+" "+c.note+" "+c.tags.join(" ")).toLowerCase().includes(q)));
+  el.innerHTML = list.length
+    ? list.map(c=>cardHtml(c,{ flat:true, buttons:`<button data-play="${c.id}">試聽</button><button class="primary" data-use="${c.id}">選這張</button>` })).join("")   // 這裡點卡片＝選這張，所以試聽仍是明確的按鈕
+    : '<div class="empty">節奏庫裡沒有符合的卡。先去節奏庫做一張。</div>';
+  el.querySelectorAll("[data-play]").forEach(b=>b.onclick=e=>{ e.stopPropagation();
+    const c=cardById(b.dataset.play); if(c) playToggle(c.pattern,b); });
+  const use=id=>{ const sec=curSong().sections.find(x=>x.id===picking.secId); if(!sec) return;
+    if(picking.kind==="fill") sec.fillRef=id; else sec.grooveRef=id;
+    stopTransport(); save(); document.getElementById("pickDialog").close(); renderSections(); };
+  el.querySelectorAll("[data-use]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); use(b.dataset.use); });
+  el.querySelectorAll("[data-card]").forEach(card=>{ card.onclick=e=>{
+    if(e.target.dataset.play!==undefined||e.target.dataset.use!==undefined) return; use(card.dataset.card); }; });
+}
+document.getElementById("pickSearch").oninput=e=>{ picking.q=e.target.value.trim(); renderPicker(); };
+document.getElementById("pickCancel").onclick=()=>{ stopTransport(); document.getElementById("pickDialog").close(); };
+document.getElementById("pickClear").onclick=()=>{
+  const sec=curSong().sections.find(x=>x.id===picking.secId);
+  if(sec){ if(picking.kind==="fill") sec.fillRef=null; else sec.grooveRef=null; save(); }
+  stopTransport(); document.getElementById("pickDialog").close(); renderSections();
+};
 
-// ---------- 分享 / fork / 匯出入 ----------
-document.getElementById("fork").onclick=()=>{ importSong(songPayload(curSong()), "（我的版本）"); };
-document.getElementById("exportJson").onclick=()=>{ downloadJson(songPayload(curSong()), (curSong().name||"chart")+".json"); };
-document.getElementById("exportAll").onclick=()=>{ downloadJson({ type:"drumchart-set", songs:data.songs.map(songPayload) }, "本週歌單.json"); };
-document.getElementById("importJson").onclick=()=>document.getElementById("fileInput").click();
-document.getElementById("fileInput").onchange=(e)=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader();
+// ---------- 檢視切換 ----------
+function showView(v){
+  stopTransport();
+  document.getElementById("viewLib").style.display = v==="lib"?"":"none";
+  document.getElementById("viewSong").style.display = v==="song"?"":"none";
+  document.querySelectorAll(".navtab").forEach(b=>b.classList.toggle("active", b.dataset.view===v));
+  if(v==="song") maybeMountRef();
+}
+document.querySelectorAll(".navtab").forEach(b=>{ b.onclick=()=>showView(b.dataset.view); });
+
+// ---------- 左側控制（庫） ----------
+function syncKindSeg(){ document.getElementById("kindSeg").querySelectorAll("button")
+  .forEach(b=>b.classList.toggle("on", b.dataset.kind===filt.kind)); }
+document.getElementById("kindSeg").querySelectorAll("button").forEach(b=>{
+  b.onclick=()=>{ stopTransport(); filt.kind=b.dataset.kind; axis=defaultAxis(filt.kind); syncKindSeg(); renderGallery(); };
+});
+document.getElementById("searchBox").oninput=e=>{ filt.q=e.target.value.trim(); renderGallery(); };
+document.getElementById("clearFilt").onclick=()=>{ filt.q=""; filt.tags=[];
+  document.getElementById("searchBox").value=""; renderFilters(); renderGallery(); };
+document.getElementById("newCard").onclick=()=>{
+  const c={ id:uid(), name:filt.kind==="fill"?"新過門":"新節奏", kind:filt.kind,
+    tags:filt.tags.slice(), parent:null, note:"", author:data.me||"", pattern:emptyPattern() };
+  data.patterns.push(c); save(); renderGallery(); openCardDialog(c.id);
+};
+document.getElementById("exportLib").onclick=()=>
+  downloadJson({ type:"drumchart-library", patterns:data.patterns.map(cardPayload) }, "節奏庫.json");
+
+// ---------- 左側控制（歌曲） ----------
+document.getElementById("loadYt").onclick=()=>{ const url=document.getElementById("ytUrl").value.trim(), id=ytId(url), s=curSong();
+  s.ytUrl=url; s.videoId=id; save();
+  if(id){ pendingRef=id; resetVideoWrap(); document.getElementById("refvid").open=true; maybeMountRef(); } else alert("看不出 YouTube 影片 ID"); };
+document.getElementById("refvid").addEventListener("toggle", maybeMountRef);
+document.getElementById("renameSong").onclick=()=>{ const n=document.getElementById("songName").value.trim(); if(n){ curSong().name=n; save(); renderSongTabs(); } };
+document.getElementById("author").onchange=e=>{ curSong().author=e.target.value.trim(); data.me=e.target.value.trim(); save(); };
+document.getElementById("delSong").onclick=()=>{ if(data.songs.length<=1){ alert("至少留一首"); return; }
+  if(!confirm("刪除這首？（節奏卡會留在庫裡）")) return;
+  stopTransport(); data.songs=data.songs.filter(s=>s.id!==data.currentId); data.currentId=data.songs[0].id;
+  save(); renderSong(); renderSections(); };
+document.getElementById("fork").onclick=()=>importSong(songPayload(curSong()), "（我的版本）");
+document.getElementById("exportSong").onclick=()=>downloadJson(songPayload(curSong()), (curSong().name||"chart")+".json");
+document.getElementById("exportAll").onclick=()=>downloadJson({ type:"drumchart-set", songs:data.songs.map(songPayload) }, "本週歌單.json");
+
+// ---------- 匯入 ----------
+const fileInput=document.getElementById("fileInput");
+document.getElementById("importFile").onclick=()=>fileInput.click();
+document.getElementById("importFile2").onclick=()=>fileInput.click();
+fileInput.onchange=e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader();
   r.onload=()=>{ try{ const o=JSON.parse(r.result);
-    if(Array.isArray(o.songs)){ o.songs.forEach(p=>importSong(p)); alert("已匯入 "+o.songs.length+" 首"); }
-    else if(Array.isArray(o.sections)){ importSong(o); }
-    else alert("檔案讀不到攻略表格式");
-  }catch(err){ alert("檔案讀不到攻略表格式"); } };
+    if(Array.isArray(o.patterns) && !Array.isArray(o.sections) && !Array.isArray(o.songs)){
+      const n=mergeCards(o.patterns); save(); renderAll(); alert("已匯入 "+n+" 張新卡片（重複的略過）");
+    } else if(Array.isArray(o.songs)){
+      o.songs.forEach(p=>importSong(p)); alert("已匯入 "+o.songs.length+" 首");
+    } else if(Array.isArray(o.sections)){
+      importSong(o); showView("song");
+    } else alert("檔案讀不到節奏庫格式");
+  }catch(err){ alert("檔案讀不到節奏庫格式"); } };
   r.readAsText(f); e.target.value=""; };
 
+// ---------- 啟動 ----------
+function renderAll(){ syncKindSeg(); renderFilters(); renderGallery(); renderSong(); renderSections(); }
+takeHashCard();
 renderAll();
 loadSamples();
 </script>
