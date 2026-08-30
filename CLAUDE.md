@@ -16,9 +16,14 @@
     **有新版不自動合併**，顯示橫幅讓使用者按（第一次開啟例外，沒東西可打擾）。
   - **個人庫**：`data.patterns` 裡 `official:false` 的卡，各自的實驗場。
   - **收到的卡**：`data.inbox`，分享連結一律先落在這裡，聽過再決定收不收。
-- **管理模式**（`data.admin`，本機 checkbox）：解開官方卡唯讀、顯示「收進官方庫」與「匯出 library.json」。
+- **管理模式**（`data.admin`，本機 checkbox）：解開官方卡唯讀、顯示「收進官方庫」「從官方庫移除」
+  「顯示已封存的卡」與「匯出 library.json」。
   **它不授予任何權限**——真正的權限是 repo 的 write 存取。資料本來就公開，藏起來沒有安全意義。
-- **測試**：`node test.js`（83 條，headless、假 DOM、假 fetch）。改動前後都跑一次。
+- **測試**：`node test.js`（92 條，headless、假 DOM、假 fetch）。改動前後都跑一次。
+- **發佈迴圈**：作者的卡標 `publish:true` → 匯出 `library.json` → commit → 下次同步時
+  `mergeLibrary()` 看到同 id 就把它**轉正**（`official:true`、`publish:false`）。
+  要把某張官方卡踢出官方庫就在管理模式下「從官方庫移除」（設 `archived`），下次匯出就不含它，
+  同步回來也不會復活（它已經不在 `library.json` 裡）。
 - **資料模型（v4）**：pattern 是第一級公民。
   ```
   patterns: [{ id, name, kind:"groove"|"fill", tags[], parent, note, author, pattern }]

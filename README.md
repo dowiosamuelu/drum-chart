@@ -110,9 +110,13 @@ python3 -m http.server 8777
 ### 維護者：怎麼發佈新版官方庫
 
 1. 側欄勾「管理模式」（純本機開關，不代表任何權限）
-2. 在要發佈的卡片「編輯」裡勾「收進官方庫」
-3. 按「匯出 library.json」，填一行更新說明
-4. 把檔案覆蓋進 repo、commit、push
+2. 要**加**的卡：在它的「編輯」裡勾「收進官方庫」
+3. 要**拿掉**的官方卡：在它的「編輯」裡按「從官方庫移除」（只是封存，本機還留著，可以取消）
+4. 按「匯出 library.json」，填一行更新說明
+5. 把檔案覆蓋進 repo、commit、push
+
+發佈之後你自己再同步一次，那些卡就會轉正成官方卡（跟其他人看到的一致）。
+管理模式裡勾「顯示已封存的卡」可以找回被移除的卡。
 
 版本號會自動加一，其他人下次打開就會看到更新提示。
 
@@ -132,7 +136,7 @@ python3 -m http.server 8777
 ## 技術
 
 - `index.html`（程式）＋ `library.json`（官方庫內容），純前端無 build，個人資料存 localStorage（key `drumchart_v4`）。
-- 測試：`node test.js`（83 條，不需要瀏覽器）。
+- 測試：`node test.js`（92 條，不需要瀏覽器）。
 - 資料模型：`patterns[]` 是第一級公民（卡片），`songs[].sections[]` 只存卡片 id（`grooveRef` / `fillRef`）。
   變體用 `parent` 表示，只做一層。
 - 鼓譜資料格式：`pattern = { tempo, ri[], oh[], hh[], tm[], sn[], kk[] }`，每軌 16 格。

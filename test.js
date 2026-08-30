@@ -225,5 +225,33 @@ M.toggleFav('g8');
 A(M.cardHtml(gg).includes('>♥</button>'),'收藏了是實心');
 M.toggleFav('g8');
 
+
+// ---------- 維護官方庫：踢掉不要的、發佈過的轉正 ----------
+const M3=boot(); await M3.syncLibrary();
+M3.data.admin=true;
+// 作者自己寫一張，標記待發佈
+const own={ id:'own1', name:'我寫的節奏', kind:'groove', tags:['中板','主歌','8 beat'], parent:null, note:'', author:'我',
+  official:false, archived:false, publish:true, pattern:M3.cardById('g8').pattern };
+M3.data.patterns.push(own);
+A(M3.publishSet().some(c=>c.id==='own1'),'待發佈的卡會進下一版');
+// 把一張官方卡踢出官方庫
+M3.cardById('ght').archived=true;
+A(!M3.publishSet().some(c=>c.id==='ght'),'封存的官方卡不會再被發佈出去');
+A(M3.cardById('ght'),'但它還在本機，取消封存救得回來');
+// 模擬：發佈後其他人（和作者自己）再同步
+const v3lib={ type:'drumchart-library', version:M3.data.libVersion+1, patterns:M3.publishSet().map(M3.cardPayload) };
+M3.mergeLibrary(v3lib);
+A(M3.cardById('own1').official&&!M3.cardById('own1').publish,'發佈過的自製卡，下次同步就轉正成官方卡');
+A(M3.cardById('ght').archived,'踢掉的那張同步後仍然是封存狀態，不會復活');
+A(M3.readOnly(M3.cardById('own1'))===false,'（管理模式下）轉正後仍可編輯');
+M3.data.admin=false;
+A(M3.readOnly(M3.cardById('own1'))===true,'一般使用者看到的是唯讀的官方卡');
+// 管理模式可以看見封存的卡
+M3.data.admin=true; M3.filt.kind='groove'; M3.filt.q=''; M3.filt.tags=[]; M3.filt.fav=false;
+M3.filt.arch=false; const ba=box(); M3.renderBrowse(ba);
+A(!ba.innerHTML.includes('data-card="ght"'),'預設看不到封存的卡');
+M3.filt.arch=true; const bb=box(); M3.renderBrowse(bb);
+A(bb.innerHTML.includes('data-card="ght"')&&bb.innerHTML.includes('已封存'),'勾了「顯示已封存」才看得到，而且有標記');
+
 console.log('\n全部通過');
 })().catch(e=>{ console.error('\n'+e.message); process.exit(1); });

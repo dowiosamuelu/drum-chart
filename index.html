@@ -249,6 +249,7 @@
     <div class="tip">別人傳來的分享連結會先落在「收到的卡」，聽過再決定收不收。</div>
     <label class="admrow"><input type="checkbox" id="adminMode" /> 管理模式（維護官方庫用）</label>
     <div id="admBox" style="display:none">
+      <label class="admrow"><input type="checkbox" id="showArch" /> 顯示已封存的卡</label>
       <div class="row"><button class="grow" id="exportLibrary">匯出 library.json</button></div>
       <div class="tip">輸出「官方卡 ＋ 標記為待發佈的卡」，版本號自動加一。把檔案 commit 進 repo，其他人下次開就會看到更新提示。</div>
     </div>
@@ -435,7 +436,8 @@ function mergeLibrary(lib){
     const c=normCard(raw); c.official=true; c.archived=false;
     const cur=cardById(id);
     if(!cur){ data.patterns.push(c); added++; }
-    else if(cur.official){ Object.assign(cur,c); updated++; }   // 保留物件identity，其他地方的引用不受影響
+    // cur.publish：作者自己標了要發佈的卡，一旦出現在 library.json 就轉正成官方卡
+    else if(cur.official||cur.publish){ Object.assign(cur,c); cur.publish=false; updated++; }
   });
   // 官方庫移除的卡不刪，只封存——不然別人半年前排的歌會突然少一段
   data.patterns.forEach(c=>{ if(c.official && !incoming.has(c.id) && !c.archived){ c.archived=true; archived++; } });
@@ -613,7 +615,7 @@ function cardHtml(c, opt){ opt=opt||{};
       <button class="fav${isFav(c.id)?" on":""}" data-fav="${c.id}" title="收藏">${isFav(c.id)?"♥":"♡"}</button></div>
     ${(()=>{ const kids=opt.showVariants?childrenOf(c.id).filter(k=>!k.archived).length:0;
         const bits=c.tags.slice(); if(kids) bits.push(kids+" 個變體");
-        if(c.official) bits.unshift("官方"); if(c.publish) bits.unshift("待發佈");
+        if(c.official) bits.unshift("官方"); if(c.publish) bits.unshift("待發佈"); if(c.archived) bits.unshift("已封存");
         return bits.length?`<div class="dmeta">${escapeHtml(bits.join(" · "))}</div>`:""; })()}
     ${miniGridHtml(c.pattern)}
     ${c.note?`<div class="dnote">${escapeHtml(c.note)}</div>`:""}
@@ -643,7 +645,7 @@ function wireCardButtons(root,opt){ opt=opt||{};
 }
 
 // ---------- 節奏庫：篩選與卡片牆 ----------
-let filt={ kind:"groove", q:"", tags:[], fav:false };
+let filt={ kind:"groove", q:"", tags:[], fav:false, arch:false };
 // 「配過門」是播放設定，不是卡片的屬性：挑一次，之後點哪張節奏都用它一起聽
 const play={ fill:null };
 function loopFillCard(){ const c=play.fill&&cardById(play.fill); return (c&&!c.archived)?c:null; }
@@ -705,7 +707,7 @@ function fillCtrlHtml(){
 // 分區瀏覽：把分類法直接變成瀏覽結構，一眼看到「節奏分成哪幾類」
 function renderBrowse(el){
   const group=TAG_GROUPS.find(g=>g.key===axis) || TAG_GROUPS[2];
-  const pool=data.patterns.filter(c=>c.kind===filt.kind && !c.archived);
+  const pool=data.patterns.filter(c=>c.kind===filt.kind && (!c.archived||filt.arch));
   const sect=(title,all,tag)=>{
     let reps=all.filter(c=>!c.parent).slice(0,MAX_PER_SECTION);
     if(!reps.length) reps=all.slice(0,MAX_PER_SECTION);   // 這一類只有變體時就秀變體
@@ -730,10 +732,10 @@ function renderBrowse(el){
 
 // 平鋪卡片牆：篩選／搜尋時用，家族連著變體一起顯示
 function renderWall(el){
-  const bases=data.patterns.filter(c=>!c.parent && c.kind===filt.kind && !c.archived);
+  const bases=data.patterns.filter(c=>!c.parent && c.kind===filt.kind && (!c.archived||filt.arch));
   let html="", n=0;
   bases.forEach(b=>{
-    const kids=childrenOf(b.id).filter(c=>!c.archived).filter(matches), bm=matches(b);
+    const kids=childrenOf(b.id).filter(c=>!c.archived||filt.arch).filter(matches), bm=matches(b);
     if(!bm && !kids.length) return;
     html+='<div class="fam">'+cardHtml(b)
         +(kids.length?'<div class="varlist">'+kids.map(k=>cardHtml(k)).join("")+"</div>":"")+"</div>";
@@ -783,6 +785,7 @@ function openCardDialog(id){
       <span class="dbtns">
         <button id="cCopy">${ro?"做我自己的版本":"複製為新卡"}</button>
         <button id="cLink">複製分享連結</button>
+        ${(data.admin&&c.official)?`<button id="cArch" class="danger">${c.archived?"取消封存":"從官方庫移除"}</button>`:""}
         ${c.official?"":`<button id="cDel" class="danger">刪除這張卡</button>`}
       </span>
       <button class="primary" id="cClose">完成</button>
@@ -822,6 +825,15 @@ function wireCardDialog(c){
   };
   d.querySelector("#cLink").onclick=()=>shareCardLink(c);
   const del=d.querySelector("#cDel"); if(del) del.onclick=()=>deleteCard(c);
+  const arch=d.querySelector("#cArch");
+  if(arch) arch.onclick=()=>{
+    if(!c.archived){
+      const used=data.songs.flatMap(x=>x.sections).filter(x=>x.grooveRef===c.id||x.fillRef===c.id).length;
+      if(!confirm("把「"+c.name+"」移出官方庫？\n它不會被刪掉，只是不再出現在瀏覽裡，下次匯出的 library.json 也不會包含它。"
+        +(used?"\n目前有 "+used+" 個段落在用它，那些段落還是能播。":""))) return;
+    }
+    c.archived=!c.archived; save(); closeCardDialog();
+  };
   d.querySelector("#cClose").onclick=()=>closeCardDialog();
 }
 function closeCardDialog(){ stopTransport(); document.getElementById("cardDialog").close();
@@ -1062,7 +1074,10 @@ function syncAdmin(){
   document.getElementById("adminMode").checked=!!data.admin;
   document.getElementById("admBox").style.display=data.admin?"":"none";
 }
-document.getElementById("adminMode").onchange=e=>{ data.admin=e.target.checked; save(); syncAdmin(); renderGallery(); };
+document.getElementById("adminMode").onchange=e=>{ data.admin=e.target.checked; save();
+  if(!data.admin){ filt.arch=false; document.getElementById("showArch").checked=false; }
+  syncAdmin(); renderGallery(); };
+document.getElementById("showArch").onchange=e=>{ filt.arch=e.target.checked; renderGallery(); };
 document.getElementById("exportLibrary").onclick=()=>{
   const cards=publishSet();
   if(!cards.length){ alert("沒有要發佈的卡。先在卡片的「編輯」裡勾「收進官方庫」。"); return; }
