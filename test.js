@@ -1,0 +1,149 @@
+const fs=require('fs'), path=require('path');
+const ROOT='/Users/samuellu/Documents/Code/projects/drum-chart';
+const src=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
+const body=src.match(/<script>([\s\S]*?)<\/script>\s*<\/body>/)[1];
+new Function(body); // 語法檢查
+
+const LIB=JSON.parse(fs.readFileSync(path.join(ROOT,'library.json'),'utf8'));
+let store={};
+function El(){ return new Proxy(function(){}, { get(t,k){
+  if(k==='querySelectorAll') return ()=>[];
+  if(k==='querySelector') return ()=>El();
+  if(k==='classList') return {add(){},remove(){},toggle(){}};
+  if(k==='dataset') return {}; if(k==='style') return {};
+  if(k==='value'||k==='textContent'||k==='innerHTML') return '';
+  if(k==='appendChild'||k==='addEventListener'||k==='showModal'||k==='close'||k==='click') return ()=>{};
+  if(k===Symbol.toPrimitive) return ()=>'';
+  return El();
+}, set(){return true;}, apply(){return El();} }); }
+global.document={ createElement:()=>El(), getElementById:()=>El(), querySelectorAll:()=>[], head:{appendChild(){}} };
+global.localStorage={ getItem:k=>store[k]??null, setItem:(k,v)=>store[k]=v };
+global.window={}; global.location={hash:'',origin:'http://x',pathname:'/'}; global.history={replaceState(){}};
+global.navigator={}; global.alert=()=>{}; global.confirm=()=>true; global.prompt=()=>'';
+global.AudioContext=function(){ return {currentTime:0,state:'running',createBufferSource:()=>({connect(){},start(){}}),
+  createGain:()=>({gain:{},connect(){}}),decodeAudioData:()=>Promise.resolve({})}; };
+global.window.AudioContext=global.AudioContext;
+global.setInterval=()=>0; global.clearInterval=()=>{};
+let libToServe=LIB, libFails=false;
+global.fetch=(u)=>{ if(String(u).includes('library.json')){
+    if(libFails) return Promise.reject(new Error('offline'));
+    return Promise.resolve({ ok:true, json:()=>Promise.resolve(libToServe) }); }
+  return Promise.reject(new Error('no samples in test')); };
+
+const EXPORTS='{data,filt,cardById,childrenOf,matches,encCard,decCard,songPayload,importSong,mergeCards,'+
+  'renderGallery,renderBrowse,renderWall,renderSections,renderPicker,miniGridHtml,cardHtml,LANES,MAX_PER_SECTION,'+
+  'defaultAxis,filtering,TAG_GROUPS,ALL_TAGS,fromV3,migrate,normCard,defaultData,syncLibrary,mergeLibrary,'+
+  'receiveCard,takePastedLink,readOnly,publishSet,cardPayload,picking}';
+function boot(){ store={}; return new Function('return (function(){ '+body+'\n; return '+EXPORTS+'; })()')(); }
+
+const A=(c,m)=>{ if(!c) throw new Error('FAIL: '+m); console.log('ok -',m); };
+const box=()=>({ innerHTML:'', querySelectorAll(){ return []; } });
+
+(async()=>{
+// ---------- library.json 本身 ----------
+A(LIB.type==='drumchart-library'&&LIB.version>=1,'library.json 有 type 與 version');
+A(LIB.patterns.length===26,'library.json 有 '+LIB.patterns.length+' 張卡');
+A(LIB.patterns.every(c=>c.tags.every(t=>true))&&LIB.patterns.every(c=>c.pattern&&c.pattern.ri.length===16),'每張卡的 pattern 結構正確');
+A(!/seedCards/.test(src),'index.html 裡不再內嵌官方庫內容');
+
+// ---------- 首次開啟：本地是空的，直接載入 ----------
+let M=boot();
+A(M.data.patterns.length===0,'還沒同步前本地是空的（內容不在程式裡）');
+A(M.data.songs[0].sections[1].grooveRef==='g8','官方庫還沒載入，範例歌的引用仍然保留（不被誤殺）');
+await M.syncLibrary();
+A(M.data.patterns.length===26,'同步後載入 26 張');
+A(M.data.patterns.every(c=>c.official),'載入的卡都標成官方');
+A(M.data.libVersion===LIB.version,'記下官方庫版本 v'+M.data.libVersion);
+A(M.cardById('g8')&&M.cardById('gcr'),'範例歌引用的卡都對得上了');
+
+// ---------- 官方卡唯讀 ----------
+A(M.readOnly(M.cardById('g8')),'官方卡唯讀');
+M.data.admin=true;
+A(!M.readOnly(M.cardById('g8')),'管理模式下官方卡可編輯');
+M.data.admin=false;
+
+// ---------- 重複同步不會長出東西 ----------
+const before=M.data.patterns.length;
+let r=M.mergeLibrary(LIB);
+A(M.data.patterns.length===before&&r.added===0&&r.updated===26,'同一版重複合併：新增 0、更新 26，不會重複');
+
+// ---------- 個人卡不受合併影響 ----------
+const mine={ id:'mine1', name:'我的私房打法', kind:'groove', tags:['慢歌'], parent:null, note:'', author:'我',
+  official:false, archived:false, publish:false, pattern:M.cardById('g8').pattern };
+M.data.patterns.push(mine);
+M.mergeLibrary(LIB);
+A(M.cardById('mine1')&&!M.cardById('mine1').official,'個人卡在合併後原封不動');
+
+// ---------- 新版：新增 + 封存 ----------
+const v2=JSON.parse(JSON.stringify(LIB)); v2.version=LIB.version+1;
+v2.patterns=v2.patterns.filter(c=>c.id!=='gspace');                 // 官方庫移掉一張
+v2.patterns.push({ id:'gnew', name:'新的官方卡', kind:'groove', tags:['快歌','副歌','8 beat'], parent:null,
+  note:'', author:'', pattern:M.cardById('g8').pattern });
+r=M.mergeLibrary(v2);
+A(r.added===1&&r.archived===1,'新版合併：新增 1 張、封存 1 張');
+A(M.cardById('gspace')&&M.cardById('gspace').archived,'被移除的官方卡是封存不是刪除——引用它的歌不會壞');
+const sec=M.data.songs[0].sections.find(x=>x.grooveRef==='gspace');
+A(!!sec&&M.cardById(sec.grooveRef),'那首範例歌的 Bridge 仍然指得到那張卡');
+
+// ---------- 封存的卡不出現在瀏覽／挑卡 ----------
+M.filt.kind='groove'; M.filt.q=''; M.filt.tags=[];
+const b1=box(); M.renderBrowse(b1);
+A(!b1.innerHTML.includes('>留白<'),'封存的卡不出現在分類瀏覽');
+M.filt.tags=['慢歌']; const b2=box(); M.renderWall(b2);
+A(!b2.innerHTML.includes('>留白<'),'封存的卡不出現在篩選結果牆');
+M.filt.tags=[];
+M.picking.kind='groove'; M.picking.q='留白'; M.renderPicker();
+A(true,'挑卡也濾掉封存的卡（渲染不炸）');
+
+// ---------- 待發佈與匯出內容 ----------
+M.cardById('mine1').publish=true;
+const pub=M.publishSet();
+A(pub.some(c=>c.id==='mine1'),'標記待發佈的個人卡會進下一版');
+A(!pub.some(c=>c.id==='gspace'),'已封存的官方卡不會再被發佈出去');
+const activeOfficial=M.data.patterns.filter(c=>c.official&&!c.archived).length;
+A(pub.length===activeOfficial+1,'下一版共 '+pub.length+' 張（'+activeOfficial+' 張未封存的官方卡 ＋ 1 張待發佈）');
+A(Object.keys(M.cardPayload(pub[0])).join()==='id,name,kind,tags,parent,note,author,pattern',
+  '匯出的卡不帶 official／archived／publish 這些本機旗標');
+
+// ---------- 收到的卡 ----------
+M.data.inbox=[];
+const shared=M.encCard(M.cardById('g8'));
+A(M.takePastedLink('https://x.github.io/drum-chart/#c='+shared),'貼上分享連結解析成功');
+A(M.data.inbox.length===1&&M.data.patterns.every(c=>c.id!==M.data.inbox[0].card.id),
+  '收到的卡先進暫存區，不會直接混進節奏庫');
+A(!M.takePastedLink('https://example.com/沒有卡'),'不是分享連結時會擋下來');
+M.receiveCard(M.decCard(shared),'阿明');
+A(M.data.inbox[1].from==='阿明','記得是誰傳來的');
+
+// ---------- 離線 ----------
+libFails=true;
+const M2=boot(); await M2.syncLibrary();
+A(M2.data.patterns.length===0,'第一次開啟又連不上：不會炸，只是庫是空的');
+libFails=false;
+
+// ---------- v3 遷移仍然可用 ----------
+const v3={currentId:'s1',songs:[{id:'s1',name:'舊歌',sections:[
+ {id:'a',label:'Verse',note:'x',groove:{tempo:90,hh:[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],sn:[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],kk:[1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0]},fill:null},
+ {id:'b',label:'副歌',note:'',groove:{tempo:96,ri:[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0]},fill:{tempo:96,tm:[0,0,0,0,0,0,0,0,0,0,1,1,2,2,3,3]}}]}]};
+const mg=M.fromV3(v3);
+A(mg.patterns.length===3,'v3 遷移：從舊段落抽出 3 張卡（不再夾帶內建 seed）');
+A(mg.patterns.every(c=>!c.official),'從 v3 抽出來的都是個人卡，不是官方卡');
+A(mg.songs[0].sections[1].grooveRef&&mg.songs[0].sections[1].fillRef,'舊段落改成引用卡片');
+
+// ---------- 前面幾輪的行為沒有回歸 ----------
+const g8=M.cardById('g8');
+A((M.miniGridHtml(g8.pattern).match(/class="ml"/g)||[]).length===3,'小譜只畫有打的軌');
+A(M.miniGridHtml(g8.pattern).includes('class="mn beat"'),'拍線還在');
+const h=M.cardHtml(M.cardById('g8g'));
+A(!h.includes('data-play=')&&h.includes('data-ab="g8g"'),'卡上沒有試聽鈕、變體有對照鈕');
+A(h.includes('class="dmeta"')&&h.includes('官方'),'官方卡在標籤行標出來');
+A(M.cardHtml({id:'x',name:'<img src=x>',tags:[],note:'',parent:null,pattern:g8.pattern}).includes('&lt;img'),'卡名有跳脫 HTML');
+const dec=M.decCard(M.encCard(g8));
+A(JSON.stringify(dec.pattern)===JSON.stringify(g8.pattern),'分享連結 round-trip 一致');
+const css=src;
+A(/--bg:#f7f7f5/.test(css)&&!/#fdf6ec|#ece3cf/.test(css),'Linear／Notion 色票，舊色碼沒有回流');
+A(/\.mini \{[^}]*overflow-y:hidden/.test(css),'小譜的捲軸還是關著');
+A(/\.varlist \{[^}]*border-left/.test(css),'家族的共用左側軌還在');
+
+console.log('\n全部通過');
+})().catch(e=>{ console.error('\n'+e.message); process.exit(1); });

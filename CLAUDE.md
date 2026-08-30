@@ -9,7 +9,16 @@
 真實情境：教會敬拜，主領一週開四首歌；面向華語鼓手，補中文鼓譜資源的空缺。
 
 ## 架構（刻意極簡）
-- **單檔** `index.html`：純前端、無框架、無後端、無 build。資料存瀏覽器 `localStorage`（key `drumchart_v4`）。
+- **`index.html` ＋ `library.json`**：純前端、無框架、無後端、無 build。GitHub Pages 直接送。
+  程式在 `index.html`，**官方庫的內容在 `library.json`**（加卡片不用碰程式）。個人資料存 `localStorage`（key `drumchart_v4`）。
+- **資料三層**：
+  - **官方庫**：`library.json`，只有 repo 的 write 權限能改。啟動時背景 fetch，比對 `data.libVersion`，
+    **有新版不自動合併**，顯示橫幅讓使用者按（第一次開啟例外，沒東西可打擾）。
+  - **個人庫**：`data.patterns` 裡 `official:false` 的卡，各自的實驗場。
+  - **收到的卡**：`data.inbox`，分享連結一律先落在這裡，聽過再決定收不收。
+- **管理模式**（`data.admin`，本機 checkbox）：解開官方卡唯讀、顯示「收進官方庫」與「匯出 library.json」。
+  **它不授予任何權限**——真正的權限是 repo 的 write 存取。資料本來就公開，藏起來沒有安全意義。
+- **測試**：`node test.js`（41 條，headless、假 DOM、假 fetch）。改動前後都跑一次。
 - **資料模型（v4）**：pattern 是第一級公民。
   ```
   patterns: [{ id, name, kind:"groove"|"fill", tags[], parent, note, author, pattern }]
@@ -34,11 +43,17 @@
 - **播放**：Web Audio 載入 `samples/*.mp3`（真鼓取樣）觸發；`playBuf()` + `GAINS` 表做各鼓件音量微調（open hi-hat 壓到 0.5）。
   排程器是 `playSeq(items, btn, tempo)`（25ms lookahead），`items = [{p, bars}]` 循環播放。
   A/B 輪流播、段落的「節奏 2 小節＋過門 1 小節」都是靠塞多段進 `playSeq`；**整串共用同一個 tempo**，差別才聽得出來。
-- **遷移**：`load()` 先讀 v4（`migrate()` 補欄位、清掉失效的 parent 與 ref），沒有就讀 v3（`fromV3()` 把藏在段落裡的 pattern 抽成卡片），再沒有就 `defaultData()`。
+- **遷移**：`load()` 先讀 v4（`migrate()` 補欄位、清掉失效的 parent），沒有就讀 v3（`fromV3()` 把藏在段落裡的 pattern 抽成卡片），再沒有就 `defaultData()`（空庫）。
+  **`migrate()` 不會清掉找不到卡的引用**——官方庫是非同步載入的，清掉會誤殺；找不到就顯示「未指定」，載入後自動復原。
 - **分享**：整庫 / 單首歌 JSON 匯出匯入（歌會**夾帶用到的卡片與其父卡**）＋ fork；**單張卡走網址** `#c=<base64>`（一張卡約 370 字元，塞得進 URL）。
 
 ## 重要設計決策（不要回頭推翻）
 - 骨架是**節奏庫**，不是曲序、不是時間軸。曲序只是把庫裡的卡排起來。
+- **官方卡在本地唯讀**，想改就先「做我自己的版本」。這讓合併永遠不會衝突——單向下發，不可能覆蓋個人卡。
+  一季才同步一次，中間每個人會累積兩三個月的改動，「不可能弄丟東西」比「少按一次」重要得多。
+- **官方庫移除某張卡時封存而不刪除**，不然別人半年前排的歌會突然少一段。
+- **不做管理者角色**。「收到的卡」對所有人一視同仁；權限來自 repo，不是 app。
+- **不做後端**、不用 GitHub Issue／API 收提案（鼓手不願意辦 GitHub 帳號）、不做排班（那是另一個產品）。
 - **首頁是分類入口，不是全庫平鋪**：把標籤分類直接變成瀏覽結構，第一屏回答的是「節奏分成哪幾類、每類長怎樣」，
   而不是「這裡有 21 張卡」。新鼓手是主要受眾，他需要先知道有哪些類別存在。老鼓手用搜尋和篩選直接跳過這層。
 - **譜一律直接顯示**，不藏在「點進去才看得到」後面——卡片牆、挑卡彈窗、曲序段落都畫譜。
@@ -54,7 +69,8 @@
 - YouTube 是選配參考，可收合、lazy mount；**不做**與鼓聲的時間軸同步。
 
 ## 怎麼跑
-`python3 -m http.server 8777` 後開 http://localhost:8777/index.html（不能用 file://）。
+`python3 -m http.server 8777` 後開 http://localhost:8777/index.html（不能用 file://；`library.json` 和 `samples/` 都要 fetch）。
+測試：`node test.js`。
 
 ## 下一步候選（按價值）
 1. **先驗證**：拿內建的 26 張卡去給真實鼓手點點看，確認「聽得到差別」真的有幫助——這比寫新功能重要。

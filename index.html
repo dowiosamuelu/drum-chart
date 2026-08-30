@@ -49,6 +49,19 @@
   .danger { color:var(--danger); }
   .danger:hover { background:#fdf1f0; }
   .tip { font-size:11px; color:var(--muted); margin-top:4px; }
+  .banner { margin:12px 20px 0; padding:9px 12px; border:1px solid var(--accent); background:var(--accent-soft);
+            border-radius:8px; font-size:12px; display:flex; gap:8px; align-items:center; }
+  .banner button { font-size:11px; padding:3px 10px; }
+  .ronote { font-size:12px; color:var(--muted); background:var(--panel-2); border:1px solid var(--line);
+            border-radius:6px; padding:8px 10px; margin-top:10px; }
+  .pubrow { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text);
+            margin-top:10px; cursor:pointer; }
+  .pubrow input { width:auto; }
+  .admrow { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); margin-top:10px; cursor:pointer; }
+  .admrow input { width:auto; }
+  .inboxfrom { font-size:11px; color:var(--muted); margin:10px 0 4px; }
+  .badge { display:inline-block; min-width:16px; padding:0 5px; border-radius:8px; background:var(--accent);
+           color:#fff; font-size:10px; line-height:16px; text-align:center; margin-left:4px; }
   .sharebar { display:flex; gap:6px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--line-2); }
   .sharebar button { font-size:12px; }
 
@@ -200,6 +213,8 @@
   </div>
 </header>
 
+<div id="libBanner" class="banner" style="display:none"></div>
+
 <!-- ============ 節奏庫 ============ -->
 <div class="wrap lib" id="viewLib">
   <div class="panel side">
@@ -215,11 +230,17 @@
       <button class="primary grow" id="newCard">＋ 新增卡片</button>
     </div>
     <div class="sharebar">
-      <button id="exportLib">匯出整庫</button>
+      <button id="openInbox">收到的卡<span class="badge" id="inboxCount" style="display:none"></span></button>
+      <button id="exportLib">匯出我的庫</button>
       <button id="importFile">匯入檔案</button>
       <input type="file" id="fileInput" accept="application/json" style="display:none" />
     </div>
-    <div class="tip">整庫匯出成 .json 傳給其他鼓手；單張卡可以在「編輯」裡複製分享連結。</div>
+    <div class="tip">別人傳來的分享連結會先落在「收到的卡」，聽過再決定收不收。</div>
+    <label class="admrow"><input type="checkbox" id="adminMode" /> 管理模式（維護官方庫用）</label>
+    <div id="admBox" style="display:none">
+      <div class="row"><button class="grow" id="exportLibrary">匯出 library.json</button></div>
+      <div class="tip">輸出「官方卡 ＋ 標記為待發佈的卡」，版本號自動加一。把檔案 commit 進 repo，其他人下次開就會看到更新提示。</div>
+    </div>
   </div>
 
   <div class="panel">
@@ -273,6 +294,18 @@
 
 <dialog id="cardDialog"><div id="cardDlgBody"></div></dialog>
 
+<dialog id="inboxDialog">
+  <h3>收到的卡</h3>
+  <div class="tip">別人用分享連結傳給你的卡會先落在這裡。聽過再決定要不要收進自己的庫。</div>
+  <div class="row"><input class="grow" id="pasteLink" placeholder="也可以直接貼上分享連結" />
+    <button id="pasteBtn">加入</button></div>
+  <div class="pickerlist" id="inboxList"></div>
+  <div class="dlg-btns">
+    <button id="inboxClear" class="danger">全部丟掉</button>
+    <button class="primary" id="inboxClose">關閉</button>
+  </div>
+</dialog>
+
 <dialog id="secDialog">
   <h3 id="secDlgTitle">新增段落</h3>
   <label>段落名稱（Intro / Verse 1 / 副歌 / Bridge…）</label>
@@ -317,68 +350,12 @@ const TAG_GROUPS=[
 const TAG_GROUP_OF={}; TAG_GROUPS.forEach(g=>g.tags.forEach(t=>TAG_GROUP_OF[t]=g.key));
 const ALL_TAGS=TAG_GROUPS.flatMap(g=>g.tags);
 
-// ---------- 內建節奏庫 ----------
-function C(id,name,tags,tempo,lanes,opt){ opt=opt||{};
-  return { id, name, kind:opt.kind||"groove", tags, parent:opt.parent||null, note:opt.note||"", author:"", pattern:mkPat(tempo,lanes) }; }
-function seedCards(){ return [
-  // 8 beat 家族
-  C("g8","基本 8 beat",["中板","主歌","8 beat"],92,
-    {hh:"1010101010101010",sn:"0000100000001000",kk:"1000000010000000"},{note:"最素的底。先會這個，其他都是它的變化。"}),
-  C("g8g","8 beat ＋ ghost 小鼓",["中板","主歌","8 beat"],92,
-    {hh:"1010101010101010",sn:"0020100200201002",kk:"1000000010000000"},{parent:"g8",note:"小鼓輕點填空隙，聽起來就活了。"}),
-  C("g8k","8 beat 大鼓切分",["中板","主歌","8 beat"],92,
-    {hh:"1010101010101010",sn:"0000100000001000",kk:"1000001010000000"},{parent:"g8",note:"第二拍後半多一顆大鼓，最常見的推進感。"}),
-  C("g8s","8 beat 十六分踩鈸",["中板","副歌","16 beat"],92,
-    {hh:"1111111111111111",sn:"0000100000001000",kk:"1000001010000000"},{parent:"g8",note:"密度上來但不換節奏，副歌很好用。"}),
-  C("g8o","8 beat 開合 hi-hat",["中板","副歌","8 beat"],92,
-    {hh:"1010101010101000",oh:"0000000000000010",sn:"0000100000001000",kk:"1000001010000000"},{parent:"g8",note:"小節尾開一下鈸，換段前的呼吸。"}),
-  C("g8q","8 beat 一拍一下",["中板","主歌","一拍一下"],92,
-    {hh:"1000100010001000",sn:"0000100000001000",kk:"1000000010000000"},{parent:"g8",note:"要收、要留白的時候用；主領說「安靜一點」通常是要這個。"}),
-  // half-time 家族
-  C("ght","Half-time 基本",["慢歌","主歌","half-time"],88,
-    {hh:"1010101010101010",sn:"0000000010000000",kk:"1000000000000000"},{note:"小鼓只落第三拍，速度沒變但感覺慢一半。"}),
-  C("ghtg","Half-time ＋ ghost",["慢歌","主歌","half-time"],88,
-    {hh:"1010101010101010",sn:"0002000010002020",kk:"1000001000000000"},{parent:"ght",note:"空隙用 ghost 補，不會空得發慌。"}),
-  C("ghtr","Half-time 跑 ride",["慢歌","橋段","half-time","跑 ride"],88,
-    {ri:"1010101010101010",sn:"0000000010000000",kk:"1000001000000000"},{parent:"ght",note:"換到 ride，音色打開但力度不加。"}),
-  // 副歌 ride 家族
-  C("gcr","副歌 跑 ride",["快歌","副歌","跑 ride"],100,
-    {ri:"1010101010101010",sn:"0000100000001000",kk:"1000001010000000"},{note:"副歌最順手的一張：ride 撐住，力度自然上來。"}),
-  C("gcro","副歌 ride ＋ 開鈸收",["快歌","副歌","跑 ride"],100,
-    {ri:"1010101010101000",oh:"0000000000000010",sn:"0000100000001000",kk:"1000001010000000"},{parent:"gcr"}),
-  C("gcrq","副歌 ride 一拍一下",["快歌","副歌","一拍一下","跑 ride"],100,
-    {ri:"1000100010001000",sn:"0000100000001000",kk:"1000001010000000"},{parent:"gcr",note:"大場面感；ride 敲得少反而更寬。"}),
-  // 16 beat 家族
-  C("g16","16 beat 基本",["中板","主歌","16 beat"],84,
-    {hh:"1111111111111111",sn:"0000100000001000",kk:"1000000010000000"},{note:"慢一點的歌用十六分踩鈸，不會顯得拖。"}),
-  C("g16g","16 beat ＋ ghost",["中板","主歌","16 beat"],84,
-    {hh:"1111111111111111",sn:"0020100200201000",kk:"1000000010000000"},{parent:"g16"}),
-  C("g16k","16 beat 大鼓雙點",["中板","副歌","16 beat"],84,
-    {hh:"1111111111111111",sn:"0000100000001000",kk:"1001000010010000"},{parent:"g16",note:"大鼓補十六分，密度往下半身走。"}),
-  // tom-tom
-  C("gtom","Tom-tom 節奏",["中板","橋段","tom-tom"],92,
-    {tm:"3030303030303030",sn:"0000100000001000",kk:"1000001010000000"},{note:"整段離開 hi-hat，橋段或安靜段落換氣氛用。"}),
-  C("gtomh","Tom-tom 高低交替",["中板","橋段","tom-tom"],92,
-    {tm:"1030103010301030",sn:"0000100000001000",kk:"1000001010000000"},{parent:"gtom"}),
-  // 抒情
-  C("gbal","抒情 8 beat",["慢歌","主歌","8 beat"],68,
-    {hh:"1010101010101010",sn:"0000100000001000",kk:"1000000010000000"},{note:"慢歌的基本盤。"}),
-  C("gbalr","抒情 跑 ride",["慢歌","副歌","跑 ride"],68,
-    {ri:"1010101010101010",sn:"0000100000001000",kk:"1000000010000000"},{parent:"gbal",note:"同一個打法換 ride，慢歌進副歌最省力的做法。"}),
-  C("gspace","留白",["慢歌","橋段","一拍一下"],68,
-    {hh:"1000000010000000",kk:"1000000000000000"},{note:"幾乎不打。禱告、獨白段落。"}),
-  C("gintro","Intro 輕進",["慢歌","Intro/Outro","一拍一下"],76,
-    {hh:"1000100010001000",kk:"1000000000000000"},{note:"從最少開始，留空間給主領起頭。"}),
-  // 過門
-  C("f1","一拍 tom 下行",["中板","主歌"],92,{tm:"0000000000001123"},{kind:"fill",note:"最短的過門，換段落不夠時間就用它。"}),
-  C("f2","兩拍 小鼓十六分",["中板","副歌"],92,{sn:"0000000012212211"},{kind:"fill"}),
-  C("f3","整小節 tom 下行",["中板","副歌"],92,{sn:"1100000000000000",tm:"0011112222333333",kk:"1000000000000000"},{kind:"fill",note:"推進副歌用；由高到低把力度往上帶。"}),
-  C("f4","大鼓小鼓交替",["快歌","副歌"],100,{sn:"0000000010101010",kk:"0000000001010101"},{kind:"fill"}),
-  C("f5","簡單收尾（開鈸）",["慢歌","Intro/Outro"],76,{sn:"0000000010001000",oh:"0000000000000001"},{kind:"fill",note:"收歌、或安靜段落之間的接點。"}),
-]; }
+// ---------- 官方庫 ----------
+// 內容不寫在程式裡，放 library.json（GitHub Pages 直接送），這樣加卡片不用碰這支檔案
+const LIB_URL="library.json";
 
 function defaultData(){ return {
-  v:4, me:"", currentId:"s1", patterns:seedCards(),
+  v:4, me:"", currentId:"s1", patterns:[], libVersion:0, inbox:[], admin:false,
   songs:[{ id:"s1", name:"範例：把這首改成你的歌", author:"", ytUrl:"", videoId:"",
     sections:[
       { id:"a", label:"Intro",   note:"留空間給主領起頭", grooveRef:"gintro", fillRef:null },
@@ -398,22 +375,30 @@ function normPattern(p){ const fix=a=>{ a=Array.isArray(a)?a.slice(0,16):[]; whi
   const o=emptyPattern(); if(p&&typeof p==="object"){ o.tempo=p.tempo||90; LANE_KEYS.forEach(k=>{ if(Array.isArray(p[k])) o[k]=fix(p[k]); }); } return o; }
 function normCard(c){ return { id:c.id||uid(), name:c.name||"未命名", kind:c.kind==="fill"?"fill":"groove",
   tags:Array.isArray(c.tags)?c.tags.filter(t=>ALL_TAGS.includes(t)):[], parent:c.parent||null,
-  note:c.note||"", author:c.author||"", pattern:normPattern(c.pattern) }; }
+  note:c.note||"", author:c.author||"", pattern:normPattern(c.pattern),
+  official:!!c.official,   // 來自官方庫 → 本地唯讀，合併時直接覆蓋不會弄丟東西
+  archived:!!c.archived,   // 官方庫移除了它 → 不刪，只是不再出現在瀏覽裡
+  publish:!!c.publish };   // 管理模式：這張要放進下一版 library.json
+}
 
 function migrate(d){
   d.patterns=(d.patterns||[]).map(normCard);
   const ids=new Set(d.patterns.map(c=>c.id));
   d.patterns.forEach(c=>{ if(c.parent&&!ids.has(c.parent)) c.parent=null; });   // 父卡被刪掉就升為基礎卡
+  // 引用即使暫時找不到卡也保留：官方庫是非同步載入的，清掉會誤殺
   d.songs=(d.songs||[]).map(s=>({ id:s.id||uid(), name:s.name||"未命名", author:s.author||"", ytUrl:s.ytUrl||"", videoId:s.videoId||"",
     sections:(s.sections||[]).map(x=>({ id:x.id||uid(), label:x.label||"段落", note:x.note||"",
-      grooveRef:ids.has(x.grooveRef)?x.grooveRef:null, fillRef:ids.has(x.fillRef)?x.fillRef:null })) }));
+      grooveRef:x.grooveRef||null, fillRef:x.fillRef||null })) }));
   if(!d.songs.length) d.songs=defaultData().songs;
   if(!d.songs.some(s=>s.id===d.currentId)) d.currentId=d.songs[0].id;
+  d.libVersion=d.libVersion||0;
+  d.inbox=(Array.isArray(d.inbox)?d.inbox:[]).map(x=>({ card:normCard(x.card||x), from:(x.from||""), at:(x.at||"") }));
+  d.admin=!!d.admin;
   d.v=4; return d;
 }
 // v3：pattern 藏在段落裡 → 抽出來變成庫裡的卡
 function fromV3(d3){
-  const patterns=seedCards();
+  const patterns=[];
   function addP(p,kind,name){ const c=normCard({id:uid(),name,kind,tags:[],pattern:p}); patterns.push(c); return c.id; }
   const songs=(d3.songs||[]).map(s=>({ id:s.id||uid(), name:s.name||"未命名", author:s.author||"", ytUrl:s.ytUrl||"", videoId:s.videoId||"",
     sections:(s.sections||[]).map(sec=>({ id:sec.id||uid(), label:sec.label||"段落", note:sec.note||"",
@@ -428,6 +413,53 @@ function load(){
 }
 let data=load();
 function save(){ localStorage.setItem(KEY, JSON.stringify(data)); }
+
+// 官方庫單向下發：本地只會新增與更新官方卡，永遠不會蓋掉個人卡，所以沒有衝突可言
+function mergeLibrary(lib){
+  const incoming=new Map((lib.patterns||[]).map(c=>[c.id,c]));
+  let added=0, updated=0, archived=0;
+  incoming.forEach((raw,id)=>{
+    const c=normCard(raw); c.official=true; c.archived=false;
+    const cur=cardById(id);
+    if(!cur){ data.patterns.push(c); added++; }
+    else if(cur.official){ Object.assign(cur,c); updated++; }   // 保留物件identity，其他地方的引用不受影響
+  });
+  // 官方庫移除的卡不刪，只封存——不然別人半年前排的歌會突然少一段
+  data.patterns.forEach(c=>{ if(c.official && !incoming.has(c.id) && !c.archived){ c.archived=true; archived++; } });
+  data.libVersion=lib.version||0; save();
+  return { added, updated, archived };
+}
+function showBanner(text, onApply){
+  const el=document.getElementById("libBanner");
+  el.innerHTML=`<span class="grow">${escapeHtml(text)}</span>`+
+    (onApply?`<button class="primary" id="bnrOk">合併</button><button id="bnrLater">稍後</button>`
+            :`<button id="bnrLater">知道了</button>`);
+  el.style.display="flex";
+  el.querySelector("#bnrLater").onclick=()=>{ el.style.display="none"; };
+  if(onApply) el.querySelector("#bnrOk").onclick=onApply;
+}
+async function syncLibrary(){
+  let lib=null;
+  try{ const r=await fetch(LIB_URL,{cache:"no-cache"}); if(!r.ok) throw new Error(r.status); lib=await r.json(); }
+  catch(e){
+    // samples/*.mp3 本來就要連線，所以第一次開必須有網路；之後離線就沿用本地資料
+    if(!data.patterns.length) showBanner("載入官方庫失敗——第一次開啟需要連線，請連上網路後重整。",null);
+    return;
+  }
+  if(!Array.isArray(lib.patterns)) return;
+  const v=lib.version||0;
+  if(!data.patterns.length){                       // 第一次：沒東西可以打擾，直接載入
+    const r=mergeLibrary(lib); renderAll();
+    showBanner("已載入官方庫 v"+v+"（"+r.added+" 張卡）",null); return;
+  }
+  if(v>(data.libVersion||0)){                      // 不自動合併：靜默改動別人的東西會嚇到人
+    const fresh=lib.patterns.filter(c=>!cardById(c.id)).length;
+    showBanner("官方庫有更新 v"+v+(lib.note?"："+lib.note:"")+"（新卡 "+fresh+" 張）", ()=>{
+      const r=mergeLibrary(lib); renderAll();
+      showBanner("已合併：新增 "+r.added+" 張、更新 "+r.updated+" 張"+(r.archived?"、封存 "+r.archived+" 張":""),null);
+    });
+  } else if(v!==data.libVersion){ data.libVersion=v; save(); }
+}
 function cardById(id){ return data.patterns.find(c=>c.id===id)||null; }
 function childrenOf(id){ return data.patterns.filter(c=>c.parent===id); }
 function familyOf(c){ const rootId=c.parent||c.id, root=cardById(rootId);
@@ -538,8 +570,9 @@ function cardHtml(c, opt){ opt=opt||{};
     <div class="dhead">
       <span class="dtitle"><span class="dname">${escapeHtml(c.name)}</span><span class="dbpm">${c.pattern.tempo}</span></span>
       <span class="dbtns">${btns}</span></div>
-    ${(()=>{ const kids=opt.showVariants?childrenOf(c.id).length:0;
+    ${(()=>{ const kids=opt.showVariants?childrenOf(c.id).filter(k=>!k.archived).length:0;
         const bits=c.tags.slice(); if(kids) bits.push(kids+" 個變體");
+        if(c.official) bits.unshift("官方"); if(c.publish) bits.unshift("待發佈");
         return bits.length?`<div class="dmeta">${escapeHtml(bits.join(" · "))}</div>`:""; })()}
     ${miniGridHtml(c.pattern)}
     ${c.note?`<div class="dnote">${escapeHtml(c.note)}</div>`:""}
@@ -612,7 +645,7 @@ function renderGallery(){
 // 分區瀏覽：把分類法直接變成瀏覽結構，一眼看到「節奏分成哪幾類」
 function renderBrowse(el){
   const group=TAG_GROUPS.find(g=>g.key===axis) || TAG_GROUPS[2];
-  const pool=data.patterns.filter(c=>c.kind===filt.kind);
+  const pool=data.patterns.filter(c=>c.kind===filt.kind && !c.archived);
   const sect=(title,all,tag)=>{
     let reps=all.filter(c=>!c.parent).slice(0,MAX_PER_SECTION);
     if(!reps.length) reps=all.slice(0,MAX_PER_SECTION);   // 這一類只有變體時就秀變體
@@ -637,10 +670,10 @@ function renderBrowse(el){
 
 // 平鋪卡片牆：篩選／搜尋時用，家族連著變體一起顯示
 function renderWall(el){
-  const bases=data.patterns.filter(c=>!c.parent && c.kind===filt.kind);
+  const bases=data.patterns.filter(c=>!c.parent && c.kind===filt.kind && !c.archived);
   let html="", n=0;
   bases.forEach(b=>{
-    const kids=childrenOf(b.id).filter(matches), bm=matches(b);
+    const kids=childrenOf(b.id).filter(c=>!c.archived).filter(matches), bm=matches(b);
     if(!bm && !kids.length) return;
     html+='<div class="fam">'+cardHtml(b)
         +(kids.length?'<div class="varlist">'+kids.map(k=>cardHtml(k)).join("")+"</div>":"")+"</div>";
@@ -659,19 +692,22 @@ function makeVariant(c){
 
 // ---------- 卡片編輯彈窗 ----------
 let editingCardId=null;
+function readOnly(c){ return c.official && !data.admin; }   // 官方卡唯讀，合併才不會弄丟本地改動
 function openCardDialog(id){
   const c=cardById(id); if(!c) return;
   stopTransport(); editingCardId=id;
-  const fam=familyOf(c), kids=childrenOf(c.id);
+  const fam=familyOf(c), kids=childrenOf(c.id), ro=readOnly(c), dis=ro?" disabled":"";
   document.getElementById("cardDlgBody").innerHTML=`
-    <h3>${c.kind==="fill"?"過門":"節奏"}卡${c.parent?"（變體）":""}</h3>
-    <label>名稱</label><input id="cName" value="${escapeHtml(c.name)}" placeholder="這張卡叫什麼" />
+    <h3>${c.kind==="fill"?"過門":"節奏"}卡${c.parent?"（變體）":""}${c.official?"　·　官方庫":""}</h3>
+    ${ro?`<div class="ronote">這是官方庫的卡，唯讀。想改成自己的打法，按下面的「做我自己的版本」。</div>`:""}
+    ${(data.admin&&!c.official)?`<label class="pubrow"><input type="checkbox" id="cPub"${c.publish?" checked":""}> 收進官方庫（會出現在下一版 library.json）</label>`:""}
+    <label>名稱</label><input id="cName" value="${escapeHtml(c.name)}" placeholder="這張卡叫什麼"${dis} />
     <label>標籤（點一下切換）</label>
-    <div class="chips" id="cTags">${ALL_TAGS.map(t=>`<span class="chip${c.tags.includes(t)?" on":""}" data-t="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join("")}</div>
+    <div class="chips" id="cTags">${ALL_TAGS.map(t=>`<span class="chip${c.tags.includes(t)?" on":""}${ro?" ro":""}" data-t="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join("")}</div>
     <label>備註：什麼時候用？要注意什麼？</label>
-    <textarea id="cNote" rows="2">${escapeHtml(c.note)}</textarea>
+    <textarea id="cNote" rows="2"${dis}>${escapeHtml(c.note)}</textarea>
     <div class="gp-head"><span class="gp-title ${c.kind==="fill"?"fill":""}">${c.kind==="fill"?"過門 FILL":"節奏 GROOVE"}</span>
-      <span class="gp-ctrl">速度 <input type="number" class="tempo" id="cTempo" value="${c.pattern.tempo}" min="40" max="240"> BPM
+      <span class="gp-ctrl">速度 <input type="number" class="tempo" id="cTempo" value="${c.pattern.tempo}" min="40" max="240"${dis}> BPM
         <button id="cPlay">播放</button></span></div>
     ${gridHtml(c.pattern)}${LEGEND}
     <div class="family">
@@ -685,9 +721,9 @@ function openCardDialog(id){
     </div>
     <div class="dlg-btns">
       <span class="dbtns">
-        <button id="cCopy">複製為新卡</button>
+        <button id="cCopy">${ro?"做我自己的版本":"複製為新卡"}</button>
         <button id="cLink">複製分享連結</button>
-        <button id="cDel" class="danger">刪除這張卡</button>
+        ${c.official?"":`<button id="cDel" class="danger">刪除這張卡</button>`}
       </span>
       <button class="primary" id="cClose">完成</button>
     </div>`;
@@ -695,30 +731,34 @@ function openCardDialog(id){
   document.getElementById("cardDialog").showModal();
 }
 function wireCardDialog(c){
-  const d=document.getElementById("cardDlgBody");
-  d.querySelectorAll(".cell").forEach(cell=>{
+  const d=document.getElementById("cardDlgBody"), ro=readOnly(c);
+  if(!ro) d.querySelectorAll(".cell").forEach(cell=>{
     cell.onclick=()=>{ const lane=cell.dataset.lane, s=+cell.dataset.step;
       c.pattern[lane][s]=cycle(lane,c.pattern[lane][s]); save();
       const v=c.pattern[lane][s]; cell.className="cell"+cellMods(lane,v,s); cell.textContent=cellGlyph(lane,v); };
   });
-  d.querySelector("#cName").onchange=e=>{ c.name=e.target.value.trim()||"未命名"; save(); };
-  d.querySelector("#cNote").onchange=e=>{ c.note=e.target.value.trim(); save(); };
-  d.querySelector("#cTempo").onchange=e=>{ c.pattern.tempo=Math.min(240,Math.max(40,+e.target.value||90)); e.target.value=c.pattern.tempo; save(); };
   d.querySelector("#cPlay").onclick=e=>playToggle(c.pattern,e.currentTarget);
-  d.querySelectorAll("#cTags .chip").forEach(ch=>{ ch.onclick=()=>{ const t=ch.dataset.t;
-    c.tags = c.tags.includes(t) ? c.tags.filter(x=>x!==t) : c.tags.concat(t);
-    ch.classList.toggle("on"); save(); }; });
+  if(!ro){
+    d.querySelector("#cName").onchange=e=>{ c.name=e.target.value.trim()||"未命名"; save(); };
+    d.querySelector("#cNote").onchange=e=>{ c.note=e.target.value.trim(); save(); };
+    d.querySelector("#cTempo").onchange=e=>{ c.pattern.tempo=Math.min(240,Math.max(40,+e.target.value||90)); e.target.value=c.pattern.tempo; save(); };
+    d.querySelectorAll("#cTags .chip").forEach(ch=>{ ch.onclick=()=>{ const t=ch.dataset.t;
+      c.tags = c.tags.includes(t) ? c.tags.filter(x=>x!==t) : c.tags.concat(t);
+      ch.classList.toggle("on"); save(); }; });
+  }
+  const pub=d.querySelector("#cPub");
+  if(pub) pub.onchange=e=>{ c.publish=e.target.checked; save(); renderGallery(); };
   d.querySelector("#mkVariant").onclick=()=>{ closeCardDialog(); makeVariant(c); };
   const ab=d.querySelector("#abPlay");
   if(ab) ab.onclick=e=>{ const other=cardById(d.querySelector("#abSel").value); if(!other) return;
     playSeq([{p:c.pattern,bars:2},{p:other.pattern,bars:2}], e.currentTarget, c.pattern.tempo); };
   d.querySelector("#cCopy").onclick=()=>{
-    const n={ id:uid(), name:c.name+"（副本）", kind:c.kind, tags:c.tags.slice(), parent:null, note:c.note, author:data.me||"",
-      pattern:structuredClone(c.pattern) };
+    const n={ id:uid(), name:c.name+(ro?"（我的版本）":"（副本）"), kind:c.kind, tags:c.tags.slice(), parent:null, note:c.note,
+      author:data.me||"", official:false, archived:false, publish:false, pattern:structuredClone(c.pattern) };
     data.patterns.push(n); save(); closeCardDialog(); openCardDialog(n.id);
   };
   d.querySelector("#cLink").onclick=()=>shareCardLink(c);
-  d.querySelector("#cDel").onclick=()=>deleteCard(c);
+  const del=d.querySelector("#cDel"); if(del) del.onclick=()=>deleteCard(c);
   d.querySelector("#cClose").onclick=()=>closeCardDialog();
 }
 function closeCardDialog(){ stopTransport(); document.getElementById("cardDialog").close();
@@ -751,12 +791,23 @@ function shareCardLink(c){
   if(navigator.clipboard) navigator.clipboard.writeText(url).then(done,()=>prompt("複製這段網址：",url));
   else prompt("複製這段網址：",url);
 }
+// 收到的卡一律先進暫存區，聽過再決定收不收——對一般鼓手那是「別人傳給我的」，
+// 對維護官方庫的人那就是提案匣。同一個東西，不需要「管理者」這種角色概念。
+function receiveCard(c, from){
+  data.inbox.push({ card:c, from:from||c.author||"", at:new Date().toISOString().slice(0,10) });
+  save(); renderInboxCount();
+}
 function takeHashCard(){
-  const m=location.hash.match(/^#c=(.+)$/); if(!m) return;
-  try{ const c=decCard(m[1]);
-    if(confirm("有人分享了一張卡「"+c.name+"」，加進你的節奏庫？")){ data.patterns.push(c); save(); filt.kind=c.kind; }
-  }catch(e){ alert("這個分享連結讀不出來"); }
+  const m=location.hash.match(/^#c=(.+)$/); if(!m) return false;
+  let ok=false;
+  try{ receiveCard(decCard(m[1])); ok=true; }catch(e){ alert("這個分享連結讀不出來"); }
   history.replaceState(null,"",location.pathname);
+  return ok;
+}
+function takePastedLink(text){
+  const m=String(text).match(/#c=([A-Za-z0-9_-]+)/);
+  if(!m){ alert("看不出這是一個卡片分享連結"); return false; }
+  try{ receiveCard(decCard(m[1])); return true; }catch(e){ alert("這個分享連結讀不出來"); return false; }
 }
 function downloadJson(obj, filename){ const blob=new Blob([JSON.stringify(obj)],{type:"application/json"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); }
@@ -803,7 +854,7 @@ function renderSong(){
 function secPartHtml(sec,kind){
   const ref = kind==="fill"?sec.fillRef:sec.grooveRef, c=cardById(ref), label=kind==="fill"?"過門":"節奏";
   return `<div class="secpart"><div class="ph"><span class="k">${label}</span>
-      ${c?`<b>${escapeHtml(c.name)}</b><span class="k">${c.pattern.tempo} BPM</span>
+      ${c?`<b>${escapeHtml(c.name)}</b><span class="k">${c.pattern.tempo} BPM${c.archived?" · 已封存":""}</span>
            <button data-play="${c.id}">試聽</button>`:`<span class="none">（未指定）</span>`}
       <button data-pick="${kind}" data-sec="${sec.id}">${c?"換一張":"挑卡"}</button></div>
     ${c?miniGridHtml(c.pattern):""}</div>`;
@@ -869,7 +920,7 @@ function openPicker(secId,kind){
 }
 function renderPicker(){
   const el=document.getElementById("picklist"), q=picking.q.toLowerCase();
-  const list=data.patterns.filter(c=>c.kind===picking.kind &&
+  const list=data.patterns.filter(c=>c.kind===picking.kind && !c.archived &&
     (!q || (c.name+" "+c.note+" "+c.tags.join(" ")).toLowerCase().includes(q)));
   el.innerHTML = list.length
     ? list.map(c=>cardHtml(c,{ flat:true, buttons:`<button data-play="${c.id}">試聽</button><button class="primary" data-use="${c.id}">選這張</button>` })).join("")   // 這裡點卡片＝選這張，所以試聽仍是明確的按鈕
@@ -889,6 +940,62 @@ document.getElementById("pickClear").onclick=()=>{
   const sec=curSong().sections.find(x=>x.id===picking.secId);
   if(sec){ if(picking.kind==="fill") sec.fillRef=null; else sec.grooveRef=null; save(); }
   stopTransport(); document.getElementById("pickDialog").close(); renderSections();
+};
+
+// ---------- 收到的卡 ----------
+function renderInboxCount(){
+  const b=document.getElementById("inboxCount"); if(!b) return;
+  const n=data.inbox.length;
+  b.textContent=n; b.style.display=n?"":"none";
+}
+function renderInbox(){
+  const el=document.getElementById("inboxList");
+  if(!data.inbox.length){ el.innerHTML='<div class="empty">目前沒有收到的卡。</div>'; return; }
+  el.innerHTML=data.inbox.map((it,i)=>
+    `<div class="inboxfrom">${escapeHtml(it.from||"不知道是誰")} 傳來${it.at?"　·　"+escapeHtml(it.at):""}</div>`+
+    cardHtml(it.card,{ flat:true, buttons:
+      `<button data-hear="${i}">試聽</button>`+
+      `<button class="primary" data-keep="${i}">收下</button>`+
+      `<button class="danger" data-drop="${i}">丟掉</button>` })).join("");
+  el.querySelectorAll("[data-hear]").forEach(b=>b.onclick=e=>{ e.stopPropagation();
+    playToggle(data.inbox[+b.dataset.hear].card.pattern,b); });
+  el.querySelectorAll("[data-keep]").forEach(b=>b.onclick=e=>{ e.stopPropagation();
+    const it=data.inbox[+b.dataset.keep], c=normCard(it.card);
+    c.official=false; c.publish=false; c.archived=false;
+    if(cardById(c.id)) c.id=uid();          // 萬一 id 撞到既有的卡就換一個
+    if(c.parent && !cardById(c.parent)) c.parent=null;   // 父卡沒跟著來就當基礎卡
+    data.patterns.push(c); data.inbox.splice(+b.dataset.keep,1);
+    stopTransport(); save(); filt.kind=c.kind; syncKindSeg(); renderAll(); renderInbox(); });
+  el.querySelectorAll("[data-drop]").forEach(b=>b.onclick=e=>{ e.stopPropagation();
+    data.inbox.splice(+b.dataset.drop,1); stopTransport(); save(); renderInboxCount(); renderInbox(); });
+}
+function openInbox(){ stopTransport(); renderInbox();
+  document.getElementById("pasteLink").value=""; document.getElementById("inboxDialog").showModal(); }
+document.getElementById("openInbox").onclick=openInbox;
+document.getElementById("inboxClose").onclick=()=>{ stopTransport(); document.getElementById("inboxDialog").close(); };
+document.getElementById("inboxClear").onclick=()=>{ if(!data.inbox.length) return;
+  if(!confirm("把「收到的卡」全部丟掉？")) return;
+  data.inbox=[]; stopTransport(); save(); renderInboxCount(); renderInbox(); };
+document.getElementById("pasteBtn").onclick=()=>{ const el=document.getElementById("pasteLink");
+  if(takePastedLink(el.value)){ el.value=""; renderInbox(); } };
+
+// ---------- 管理模式：維護官方庫用的本機開關 ----------
+// 它不授予任何權限——真正的權限是 repo 的 write 存取。這裡只是把維護用的按鈕露出來。
+// 下一版 library.json 的內容：現有官方卡（未封存）＋ 標記為待發佈的個人卡
+function publishSet(){ return data.patterns.filter(c=>(c.official&&!c.archived)||c.publish); }
+function syncAdmin(){
+  document.getElementById("adminMode").checked=!!data.admin;
+  document.getElementById("admBox").style.display=data.admin?"":"none";
+}
+document.getElementById("adminMode").onchange=e=>{ data.admin=e.target.checked; save(); syncAdmin(); renderGallery(); };
+document.getElementById("exportLibrary").onclick=()=>{
+  const cards=publishSet();
+  if(!cards.length){ alert("沒有要發佈的卡。先在卡片的「編輯」裡勾「收進官方庫」。"); return; }
+  const version=(data.libVersion||0)+1;
+  const note=prompt("這次更新的說明（會顯示在其他人的更新提示上）","")||"";
+  downloadJson({ type:"drumchart-library", version, updatedAt:new Date().toISOString().slice(0,10),
+    note, patterns:cards.map(cardPayload) }, "library.json");
+  alert("已匯出 v"+version+"（"+cards.length+" 張）。把 library.json 覆蓋進 repo 再 commit 就發佈了。");
 };
 
 // ---------- 檢視切換 ----------
@@ -950,10 +1057,13 @@ fileInput.onchange=e=>{ const f=e.target.files[0]; if(!f) return; const r=new Fi
   r.readAsText(f); e.target.value=""; };
 
 // ---------- 啟動 ----------
-function renderAll(){ syncKindSeg(); renderFilters(); renderGallery(); renderSong(); renderSections(); }
-takeHashCard();
-renderAll();
+function renderAll(){ syncKindSeg(); renderFilters(); renderGallery(); renderSong(); renderSections(); renderInboxCount(); }
+const gotShared=takeHashCard();      // 分享連結先落到「收到的卡」
+syncAdmin();
+renderAll();                         // 先用本地資料畫出來，不等網路
+syncLibrary();                       // 官方庫在背景更新
 loadSamples();
+if(gotShared) openInbox();
 </script>
 </body>
 </html>
