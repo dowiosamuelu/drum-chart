@@ -370,12 +370,12 @@ const LIB_URL="library.json";
 function defaultData(){ return {
   v:4, me:"", currentId:"s1", patterns:[], libVersion:0, inbox:[], admin:false, favs:[],
   songs:[{ id:"s1", name:"範例：把這首改成你的歌", author:"", ytUrl:"", videoId:"",
-    sections:[
-      { id:"a", label:"Intro",   note:"留空間給主領起頭", grooveRef:"gintro", fillRef:null },
-      { id:"b", label:"Verse 1", note:"", grooveRef:"g8", fillRef:null },
-      { id:"c", label:"Verse 2", note:"末尾過門推進副歌", grooveRef:"g8g", fillRef:"f3" },
-      { id:"d", label:"副歌",     note:"開 ride、力度上來", grooveRef:"gcr", fillRef:null },
-      { id:"e", label:"Bridge",  note:"留白", grooveRef:"gspace", fillRef:null },
+    sections:[   // 段落先留空，從節奏庫挑卡填進來
+      { id:"a", label:"Intro",   note:"留空間給主領起頭", grooveRef:null, fillRef:null },
+      { id:"b", label:"Verse 1", note:"", grooveRef:null, fillRef:null },
+      { id:"c", label:"Verse 2", note:"末尾過門推進副歌", grooveRef:null, fillRef:null },
+      { id:"d", label:"副歌",     note:"力度上來", grooveRef:null, fillRef:null },
+      { id:"e", label:"Bridge",  note:"留白", grooveRef:null, fillRef:null },
     ]}]
 }; }
 
