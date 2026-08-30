@@ -23,7 +23,7 @@ global.navigator={}; global.alert=()=>{}; global.confirm=()=>true; global.prompt
 global.AudioContext=function(){ return {currentTime:0,state:'running',createBufferSource:()=>({connect(){},start(){}}),
   createGain:()=>({gain:{},connect(){}}),decodeAudioData:()=>Promise.resolve({})}; };
 global.window.AudioContext=global.AudioContext;
-global.setInterval=()=>0; global.clearInterval=()=>{};
+global.setInterval=()=>1; global.clearInterval=()=>{};
 let libToServe=LIB, libFails=false;
 global.fetch=(u)=>{ if(String(u).includes('library.json')){
     if(libFails) return Promise.reject(new Error('offline'));
@@ -34,7 +34,7 @@ const EXPORTS='{data,filt,cardById,childrenOf,matches,encCard,decCard,songPayloa
   'renderGallery,renderBrowse,renderWall,renderSections,renderPicker,miniGridHtml,cardHtml,LANES,MAX_PER_SECTION,'+
   'defaultAxis,filtering,TAG_GROUPS,ALL_TAGS,fromV3,migrate,normCard,defaultData,syncLibrary,mergeLibrary,'+
   'receiveCard,takePastedLink,readOnly,publishSet,cardPayload,picking,mergedBar,phrase,isFav,toggleFav,'+
-  'cellGlyph,cycle,LANE_KEYS,SAMPLE_FILES,emptyPattern}';
+  'cellGlyph,cycle,LANE_KEYS,SAMPLE_FILES,emptyPattern,trans,playSeq,stopTransport,play,loopFillCard,fillCtrlHtml}';
 function boot(){ store={}; return new Function('return (function(){ '+body+'\n; return '+EXPORTS+'; })()')(); }
 
 const A=(c,m)=>{ if(!c) throw new Error('FAIL: '+m); console.log('ok -',m); };
@@ -188,6 +188,42 @@ A(M.isFav('g8'),'收藏在合併官方庫之後還在（只存 id，跟卡片內
 M.toggleFav('g8'); M.filt.fav=false;
 A(!M.isFav('g8')&&!M.filtering(),'再按一次取消收藏');
 A(M.defaultAxis('fill')==='speed','過門改用「速度感」分區（適用段落對過門語意不清）');
+
+
+// ---------- 播放器認 id，不認 DOM 元素 ----------
+const gg=M.cardById('g8');
+M.stopTransport();
+M.playSeq([{p:gg.pattern,bars:1}],null,90,'card:g8');
+A(M.trans.key==='card:g8','播放中記住的是 id（重繪後還認得出來）');
+M.playSeq([{p:gg.pattern,bars:1}],null,90,'card:g8');
+A(!M.trans.key,'同一張再點一次＝停止');
+M.playSeq([{p:gg.pattern,bars:1}],null,90,'card:g8');
+M.playSeq([{p:M.cardById('ght').pattern,bars:1}],null,90,'card:ght');
+A(M.trans.key==='card:ght','點另一張就換過去');
+M.stopTransport();
+A(!/function showView\(v\)\{?\s*\n?\s*stopTransport/.test(src),'切分頁不再中斷播放');
+A(/markPlaying\(\);\s*\n\}/.test(src)||src.includes('markPlaying();          // 換分頁'),'切分頁後把播放中的樣子貼回去');
+A(src.includes('data-sec="${sec.id}"'),'段落有 data-sec，重繪後標得回播放中');
+
+// ---------- 配過門：全域選擇、用卡片挑 ----------
+A(M.loopFillCard()===null&&M.fillCtrlHtml().includes('不加'),'預設不配過門');
+M.play.fill='f1';
+A(M.loopFillCard().id==='f1','配過門是全域設定，不是卡片屬性');
+A(M.fillCtrlHtml().includes('一拍 tom 下行'),'標題列顯示目前配的是哪一張');
+M.filt.kind='fill';
+A(M.fillCtrlHtml()==='','看過門的時候不顯示「配過門」');
+M.filt.kind='groove';
+A(!src.includes('id="cFill"'),'編輯彈窗裡的過門下拉已移除（改用卡片挑）');
+A(src.includes('openFillPicker'),'改成開挑卡彈窗——看得到譜、聽得到');
+M.play.fill=null;
+
+// ---------- 愛心位置 ----------
+const fh=M.cardHtml(gg);
+A(fh.indexOf('class="dbtns"')<fh.indexOf('class="fav'),'愛心固定在最右邊，在操作按鈕之後');
+A(fh.includes('>♡</button>'),'沒收藏是空心');
+M.toggleFav('g8');
+A(M.cardHtml(gg).includes('>♥</button>'),'收藏了是實心');
+M.toggleFav('g8');
 
 console.log('\n全部通過');
 })().catch(e=>{ console.error('\n'+e.message); process.exit(1); });

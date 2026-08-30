@@ -114,13 +114,14 @@
   @media (hover:none){ .dbtns { opacity:1; } }
   .pickerlist .dbtns { opacity:1; }
   .dbtns button { padding:2px 8px; font-size:11px; }
-  /* 收藏：收藏過的一直看得到，沒收藏的滑上去才出現 */
-  .fav { border:0; background:transparent; color:var(--beat); font-size:14px; line-height:1;
-         padding:2px 4px; flex-shrink:0; opacity:0; transition:opacity .12s; }
-  .fav:hover { background:var(--hover); }
+  /* 收藏：固定在卡片右上角。收藏過的一直看得到，沒收藏的滑上去才出現 */
+  .fav { border:0; background:transparent; color:var(--beat); font-size:15px; line-height:1;
+         padding:1px 2px; margin-left:2px; flex-shrink:0; opacity:0; transition:opacity .12s, color .12s; }
+  .fav:hover { background:transparent; color:var(--danger); }
   .dcard:hover .fav { opacity:1; }
   .fav.on { opacity:1; color:var(--danger); }
   @media (hover:none){ .fav { opacity:1; } }
+  .phright button.on { color:var(--accent); background:var(--accent-soft); border-color:var(--accent); }
   /* 標籤退成一行小字：pill 太重，而且會跟側欄「可點的篩選 pill」搞混 */
   .dmeta, .dnote { font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .dmeta { margin-top:2px; }
@@ -503,7 +504,7 @@ function playBuf(key,t,gain){ const b=buffers[key]; if(!b) return; const c=AC();
   src.connect(g); g.connect(c.destination); src.start(t); }
 
 // 播放器：一串 {p:pattern, bars:n}，循環。A/B 比較就是塞兩段進去。
-let trans={ timer:null, seq:null, idx:0, step:0, nextTime:0, btn:null, tempo:90 };
+let trans={ timer:null, seq:null, idx:0, step:0, nextTime:0, el:null, key:null, tempo:90 };
 function fireStep(p,s,t){
   if(p.cr[s]) playBuf("crash",t);
   if(p.ri[s]) playBuf("ride",t);
@@ -514,17 +515,26 @@ function fireStep(p,s,t){
   if(p.kk[s]) playBuf("kick",t);
 }
 function stopTransport(){ if(trans.timer){ clearInterval(trans.timer); trans.timer=null; }
-  const el=trans.btn;
-  if(el){ if(el.tagName==="BUTTON") el.textContent=el.dataset.label||"播放"; el.classList.remove("playing"); trans.btn=null; } }
-function playSeq(items, btn, tempo){
-  if(trans.timer && trans.btn===btn){ stopTransport(); return; }
+  const el=trans.el;
+  if(el){ if(el.tagName==="BUTTON"&&el.dataset.label) el.textContent=el.dataset.label; el.classList.remove("playing"); }
+  trans.el=null; trans.key=null; }
+// 重繪之後把「播放中」的樣子貼回去——播放本身不受影響，掉的只是畫面狀態
+function markPlaying(){
+  if(!trans.timer||!trans.key) return;
+  const m=trans.key.match(/^(card|sec):(.+)$/); if(!m) return;
+  const el=document.querySelector(m[1]==="card"?`.dcard[data-card="${m[2]}"]`:`li.section[data-sec="${m[2]}"]`);
+  if(el){ el.classList.add("playing"); trans.el=el; }
+}
+function playSeq(items, el, tempo, key){
+  // 同一個東西再按一次＝停止。有 key 就認 key（跨重繪也認得出來），沒有就認元素
+  if(trans.timer && (key ? trans.key===key : trans.el===el)){ stopTransport(); return; }
   stopTransport();
   items=(items||[]).filter(it=>it&&it.p); if(!items.length) return;
   const c=AC(); if(c.state==="suspended") c.resume();
   if(!samplesReady) loadSamples();
   trans.seq=items; trans.idx=0; trans.step=0; trans.tempo=tempo||items[0].p.tempo||90;
-  trans.nextTime=c.currentTime+0.06; trans.btn=btn;
-  if(btn){ if(btn.tagName==="BUTTON"){ btn.dataset.label=btn.textContent; btn.textContent="停止"; } btn.classList.add("playing"); }
+  trans.nextTime=c.currentTime+0.06; trans.el=el; trans.key=key||null;
+  if(el){ if(el.tagName==="BUTTON"){ el.dataset.label=el.textContent; el.textContent="停止"; } el.classList.add("playing"); }
   trans.timer=setInterval(()=>{ const cc=AC(), dur=(60/(trans.tempo||90))/4;
     while(trans.nextTime < cc.currentTime+0.1){
       const it=trans.seq[trans.idx], total=(it.bars||1)*16;
@@ -599,8 +609,8 @@ function cardHtml(c, opt){ opt=opt||{};
   return `<div class="dcard${c.parent&&!opt.flat?" variant":""}" data-card="${c.id}">
     <div class="dhead">
       <span class="dtitle"><span class="dname">${escapeHtml(c.name)}</span><span class="dbpm">${c.pattern.tempo}</span></span>
-      <button class="fav${isFav(c.id)?" on":""}" data-fav="${c.id}" title="收藏">♥</button>
-      <span class="dbtns">${btns}</span></div>
+      <span class="dbtns">${btns}</span>
+      <button class="fav${isFav(c.id)?" on":""}" data-fav="${c.id}" title="收藏">${isFav(c.id)?"♥":"♡"}</button></div>
     ${(()=>{ const kids=opt.showVariants?childrenOf(c.id).filter(k=>!k.archived).length:0;
         const bits=c.tags.slice(); if(kids) bits.push(kids+" 個變體");
         if(c.official) bits.unshift("官方"); if(c.publish) bits.unshift("待發佈");
@@ -615,7 +625,9 @@ function wireCardButtons(root,opt){ opt=opt||{};
     const c=cardById(b.dataset.play); if(c) playToggle(c.pattern,b); }; });
   if(opt.playOnClick) root.querySelectorAll(".dcard").forEach(el=>{ el.onclick=e=>{
     if(e.target.closest("button")) return;
-    const c=cardById(el.dataset.card); if(c) playToggle(c.pattern,el); }; });
+    const c=cardById(el.dataset.card); if(!c) return;
+    const f=c.kind==="groove"?loopFillCard():null;      // 過門卡自己就單獨 loop
+    playSeq(phrase(c.pattern, f&&f.pattern), el, c.pattern.tempo, "card:"+c.id); }; });
   root.querySelectorAll("[data-ab]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
     const c=cardById(b.dataset.ab), base=c&&cardById(c.parent); if(!c||!base) return;
     // 兩張都用基礎卡的速度，差別才聽得出來
@@ -625,11 +637,16 @@ function wireCardButtons(root,opt){ opt=opt||{};
   root.querySelectorAll("[data-edit]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
     openCardDialog(b.dataset.edit); }; });
   root.querySelectorAll("[data-fav]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
-    toggleFav(b.dataset.fav); b.classList.toggle("on"); if(filt.fav) renderGallery(); }; });
+    toggleFav(b.dataset.fav); const on=isFav(b.dataset.fav);
+    b.classList.toggle("on",on); b.textContent=on?"♥":"♡";
+    if(filt.fav) renderGallery(); }; });
 }
 
 // ---------- 節奏庫：篩選與卡片牆 ----------
 let filt={ kind:"groove", q:"", tags:[], fav:false };
+// 「配過門」是播放設定，不是卡片的屬性：挑一次，之後點哪張節奏都用它一起聽
+const play={ fill:null };
+function loopFillCard(){ const c=play.fill&&cardById(play.fill); return (c&&!c.archived)?c:null; }
 function renderFilters(){
   const el=document.getElementById("filters");
   el.innerHTML=TAG_GROUPS.map(g=>`<div class="taggroup"><div class="gl">${g.label}</div><div class="chips">`+
@@ -663,18 +680,26 @@ function renderGallery(){
   if(filtering()){
     const n=renderWall(el);
     title.textContent="篩選結果";
-    head.innerHTML=`<span>${n} 張</span><button id="backBrowse">回到分類瀏覽</button>`;
+    head.innerHTML=fillCtrlHtml()+`<span>${n} 張</span><button id="backBrowse">回到分類瀏覽</button>`;
     head.querySelector("#backBrowse").onclick=()=>{ filt.q=""; filt.tags=[]; filt.fav=false;
       document.getElementById("searchBox").value=""; document.getElementById("favOnly").checked=false;
       renderFilters(); renderGallery(); };
   } else {
     const n=renderBrowse(el);
     title.textContent="分類瀏覽";
-    head.innerHTML=`<span>共 ${n} 張</span>　分區依據
+    head.innerHTML=fillCtrlHtml()+`<span>共 ${n} 張</span>　分區依據
       <select id="axisSel">${TAG_GROUPS.map(g=>`<option value="${g.key}"${g.key===axis?" selected":""}>${g.label}</option>`).join("")}</select>`;
     head.querySelector("#axisSel").onchange=e=>{ axis=e.target.value; renderGallery(); };
   }
   wireCardButtons(el,{playOnClick:true});
+  const fb=head.querySelector("#fillPick"); if(fb) fb.onclick=openFillPicker;
+  markPlaying();
+}
+// 節奏才需要配過門；顯示目前配的是哪一張
+function fillCtrlHtml(){
+  if(filt.kind!=="groove") return "";
+  const f=loopFillCard();
+  return `配過門 <button id="fillPick"${f?' class="on"':""}>${f?escapeHtml(f.name):"不加"}</button>　`;
 }
 
 // 分區瀏覽：把分類法直接變成瀏覽結構，一眼看到「節奏分成哪幾類」
@@ -698,7 +723,7 @@ function renderBrowse(el){
   const rest=pool.filter(c=>!c.tags.some(t=>group.tags.includes(t)));
   if(rest.length) html+=sect("未分類",rest,null);
   el.innerHTML = html || '<div class="empty">這個庫還沒有卡片。按「＋ 新增卡片」建一張。</div>';
-  el.querySelectorAll("[data-all]").forEach(b=>{ b.onclick=()=>{ stopTransport();
+  el.querySelectorAll("[data-all]").forEach(b=>{ b.onclick=()=>{
     filt.tags=[b.dataset.all]; renderFilters(); renderGallery(); window.scrollTo({top:0,behavior:"smooth"}); }; });
   return pool.length;
 }
@@ -743,9 +768,6 @@ function openCardDialog(id){
     <textarea id="cNote" rows="2"${dis}>${escapeHtml(c.note)}</textarea>
     <div class="gp-head"><span class="gp-title ${c.kind==="fill"?"fill":""}">${c.kind==="fill"?"過門 FILL":"節奏 GROOVE"}</span>
       <span class="gp-ctrl">速度 <input type="number" class="tempo" id="cTempo" value="${c.pattern.tempo}" min="40" max="240"${dis}> BPM
-        ${c.kind==="groove"?`配過門 <select id="cFill"><option value="">不加</option>`+
-          data.patterns.filter(x=>x.kind==="fill"&&!x.archived).map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join("")+
-          `</select>`:""}
         <button id="cPlay">播放</button></span></div>
     ${gridHtml(c.pattern)}${LEGEND}
     <div class="family">
@@ -776,7 +798,7 @@ function wireCardDialog(c){
       const v=c.pattern[lane][s]; cell.className="cell"+cellMods(lane,v,s); cell.textContent=cellGlyph(lane,v); };
   });
   d.querySelector("#cPlay").onclick=e=>{
-    const sel=d.querySelector("#cFill"), f=sel&&sel.value?cardById(sel.value):null;
+    const f=c.kind==="groove"?loopFillCard():null;
     playSeq(phrase(c.pattern, f&&f.pattern), e.currentTarget, c.pattern.tempo);
   };
   if(!ro){
@@ -904,7 +926,7 @@ function renderSections(){
   const ul=document.getElementById("sections"); if(!ul) return;
   const secs=curSong().sections;
   if(!secs.length){ ul.innerHTML='<li style="color:var(--muted);list-style:none;padding:6px;">還沒有段落，按下面「新增段落」</li>'; return; }
-  ul.innerHTML=secs.map((sec,idx)=>`<li class="section">
+  ul.innerHTML=secs.map((sec,idx)=>`<li class="section" data-sec="${sec.id}">
       <span class="ord">
         <button data-up="${idx}" ${idx===0?"disabled":""}>▲</button>
         <button data-down="${idx}" ${idx===secs.length-1?"disabled":""}>▼</button></span>
@@ -919,9 +941,10 @@ function renderSections(){
   ul.querySelectorAll("[data-editsec]").forEach(b=>b.onclick=()=>openSecDialog(b.dataset.editsec));
   ul.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>openPicker(b.dataset.sec,b.dataset.pick));
   ul.querySelectorAll("[data-play]").forEach(b=>b.onclick=()=>{ const c=cardById(b.dataset.play); if(c) playToggle(c.pattern,b); });
-  ul.querySelectorAll("[data-playsec]").forEach(b=>b.onclick=()=>{
+  markPlaying();
+  ul.querySelectorAll("[data-playsec]").forEach(b=>b.onclick=(ev)=>{ ev.stopPropagation();
     const sec=secs.find(x=>x.id===b.dataset.playsec), g=cardById(sec.grooveRef), f=cardById(sec.fillRef); if(!g) return;
-    playSeq(phrase(g.pattern, f&&f.pattern), b, g.pattern.tempo); });
+    playSeq(phrase(g.pattern, f&&f.pattern), b.closest("li.section"), g.pattern.tempo, "sec:"+sec.id); });
 }
 function move(idx,dir){ const a=curSong().sections, j=idx+dir; if(j<0||j>=a.length) return;
   [a[idx],a[j]]=[a[j],a[idx]]; save(); renderSections(); }
@@ -951,10 +974,17 @@ document.getElementById("secDelete").onclick=()=>{
 };
 
 // 挑卡彈窗：一樣把譜畫出來，挑的時候看得到
-let picking={ secId:null, kind:"groove", q:"" };
+let picking={ secId:null, kind:"groove", q:"", mode:"section" };
 function openPicker(secId,kind){
-  picking={ secId, kind, q:"" };
+  picking={ secId, kind, q:"", mode:"section" };
   document.getElementById("pickTitle").textContent=kind==="fill"?"挑一張過門":"挑一張節奏";
+  document.getElementById("pickSearch").value="";
+  renderPicker(); document.getElementById("pickDialog").showModal();
+}
+// 用卡片（看得到譜、聽得到）挑一張過門配著聽，不用進編輯彈窗
+function openFillPicker(){
+  picking={ secId:null, kind:"fill", q:"", mode:"loopfill" };
+  document.getElementById("pickTitle").textContent="配一個過門一起聽";
   document.getElementById("pickSearch").value="";
   renderPicker(); document.getElementById("pickDialog").showModal();
 }
@@ -967,7 +997,10 @@ function renderPicker(){
     : '<div class="empty">節奏庫裡沒有符合的卡。先去節奏庫做一張。</div>';
   el.querySelectorAll("[data-play]").forEach(b=>b.onclick=e=>{ e.stopPropagation();
     const c=cardById(b.dataset.play); if(c) playToggle(c.pattern,b); });
-  const use=id=>{ const sec=curSong().sections.find(x=>x.id===picking.secId); if(!sec) return;
+  const use=id=>{
+    if(picking.mode==="loopfill"){ play.fill=id;
+      stopTransport(); document.getElementById("pickDialog").close(); renderGallery(); return; }
+    const sec=curSong().sections.find(x=>x.id===picking.secId); if(!sec) return;
     if(picking.kind==="fill") sec.fillRef=id; else sec.grooveRef=id;
     stopTransport(); save(); document.getElementById("pickDialog").close(); renderSections(); };
   el.querySelectorAll("[data-use]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); use(b.dataset.use); });
@@ -977,9 +1010,11 @@ function renderPicker(){
 document.getElementById("pickSearch").oninput=e=>{ picking.q=e.target.value.trim(); renderPicker(); };
 document.getElementById("pickCancel").onclick=()=>{ stopTransport(); document.getElementById("pickDialog").close(); };
 document.getElementById("pickClear").onclick=()=>{
+  stopTransport(); document.getElementById("pickDialog").close();
+  if(picking.mode==="loopfill"){ play.fill=null; renderGallery(); return; }
   const sec=curSong().sections.find(x=>x.id===picking.secId);
   if(sec){ if(picking.kind==="fill") sec.fillRef=null; else sec.grooveRef=null; save(); }
-  stopTransport(); document.getElementById("pickDialog").close(); renderSections();
+  renderSections();
 };
 
 // ---------- 收到的卡 ----------
@@ -1040,11 +1075,11 @@ document.getElementById("exportLibrary").onclick=()=>{
 
 // ---------- 檢視切換 ----------
 function showView(v){
-  stopTransport();
   document.getElementById("viewLib").style.display = v==="lib"?"":"none";
   document.getElementById("viewSong").style.display = v==="song"?"":"none";
   document.querySelectorAll(".navtab").forEach(b=>b.classList.toggle("active", b.dataset.view===v));
   if(v==="song") maybeMountRef();
+  markPlaying();          // 換分頁不打斷播放，只把「播放中」的樣子貼回去
 }
 document.querySelectorAll(".navtab").forEach(b=>{ b.onclick=()=>showView(b.dataset.view); });
 
@@ -1052,10 +1087,10 @@ document.querySelectorAll(".navtab").forEach(b=>{ b.onclick=()=>showView(b.datas
 function syncKindSeg(){ document.getElementById("kindSeg").querySelectorAll("button")
   .forEach(b=>b.classList.toggle("on", b.dataset.kind===filt.kind)); }
 document.getElementById("kindSeg").querySelectorAll("button").forEach(b=>{
-  b.onclick=()=>{ stopTransport(); filt.kind=b.dataset.kind; axis=defaultAxis(filt.kind); syncKindSeg(); renderGallery(); };
+  b.onclick=()=>{ filt.kind=b.dataset.kind; axis=defaultAxis(filt.kind); syncKindSeg(); renderGallery(); };
 });
 document.getElementById("searchBox").oninput=e=>{ filt.q=e.target.value.trim(); renderGallery(); };
-document.getElementById("favOnly").onchange=e=>{ stopTransport(); filt.fav=e.target.checked; renderGallery(); };
+document.getElementById("favOnly").onchange=e=>{ filt.fav=e.target.checked; renderGallery(); };
 document.getElementById("clearFilt").onclick=()=>{ filt.q=""; filt.tags=[]; filt.fav=false;
   document.getElementById("searchBox").value=""; document.getElementById("favOnly").checked=false;
   renderFilters(); renderGallery(); };
