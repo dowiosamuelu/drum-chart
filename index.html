@@ -354,12 +354,20 @@ function P(str){ const a=z(), s=String(str).replace(/\s/g,""); for(let i=0;i<16;
 function mkPat(tempo,obj){ const p=emptyPattern(); p.tempo=tempo; for(const k in obj) p[k]=P(obj[k]); return p; }
 
 // ---------- 標籤（組內 OR、組間 AND） ----------
-// 沒有 shuffle / 6-8：16 格的 4/4 打不出三連音，硬塞只會是假的
+// 「打法特徵」的取捨原則：標**你會開口要的東西**，不是標譜面上看得到的東西；
+// 而且名字要講明是哪個肢體——舊的「一拍一下」沒講，踩鈸四分和大鼓四分都能叫這個名字。
+// 被排除的：
+//   shuffle / 6-8 —— 16 格的 4/4 打不出三連音，硬塞只會是假的
+//   大鼓切分     —— 七成以上的卡都符合，分不出東西的標籤沒有用
+//   ghost note   —— 那是同一張卡的變體，家族機制在處理，不該佔一個瀏覽分區
 const TAG_GROUPS=[
   { key:"speed", label:"速度感",   tags:["快歌","中板","慢歌"] },
   { key:"part",  label:"適用段落", tags:["Intro/Outro","主歌","副歌","橋段"] },
-  { key:"feel",  label:"打法特徵", tags:["8 beat","16 beat","half-time","一拍一下","tom-tom","跑 ride"] },
+  { key:"feel",  label:"打法特徵", tags:["8 beat","16 beat","half-time","four on the floor",
+                                        "跑 ride","tom-tom","rimclick","留白"] },
 ];
+// 標籤改名時的對照，免得舊卡上的標籤在載入時被靜默丟掉
+const TAG_RENAMES={ "一拍一下":"留白" };
 const TAG_GROUP_OF={}; TAG_GROUPS.forEach(g=>g.tags.forEach(t=>TAG_GROUP_OF[t]=g.key));
 const ALL_TAGS=TAG_GROUPS.flatMap(g=>g.tags);
 
@@ -387,7 +395,7 @@ function hasHits(p){ return !!p && LANE_KEYS.some(k=>p[k]&&p[k].some(Boolean)); 
 function normPattern(p){ const fix=a=>{ a=Array.isArray(a)?a.slice(0,16):[]; while(a.length<16)a.push(0); return a.map(n=>n|0); };
   const o=emptyPattern(); if(p&&typeof p==="object"){ o.tempo=p.tempo||90; LANE_KEYS.forEach(k=>{ if(Array.isArray(p[k])) o[k]=fix(p[k]); }); } return o; }
 function normCard(c){ return { id:c.id||uid(), name:c.name||"未命名", kind:c.kind==="fill"?"fill":"groove",
-  tags:Array.isArray(c.tags)?c.tags.filter(t=>ALL_TAGS.includes(t)):[], parent:c.parent||null,
+  tags:Array.isArray(c.tags)?[...new Set(c.tags.map(t=>TAG_RENAMES[t]||t))].filter(t=>ALL_TAGS.includes(t)):[], parent:c.parent||null,
   note:c.note||"", author:c.author||"", pattern:normPattern(c.pattern),
   official:!!c.official,   // 來自官方庫 → 本地唯讀，合併時直接覆蓋不會弄丟東西
   archived:!!c.archived,   // 官方庫移除了它 → 不刪，只是不再出現在瀏覽裡

@@ -29,9 +29,9 @@ const FIX={ type:'drumchart-library', version:1, updatedAt:'2026-01-01', note:'�
     {cr:'1000000000000000',ri:'0010101010101010',sn:'0000100000001000',kk:'1000001010000000'},{parent:'gcr'}),
   card('gbalr','抒情 跑 ride',['慢歌','副歌','跑 ride'],68,
     {ri:'1010101010101010',sn:'0000100000001000',kk:'1000000010000000'}),
-  card('gbalrim','抒情 rimclick',['慢歌','主歌','8 beat'],68,
+  card('gbalrim','抒情 rimclick',['慢歌','主歌','rimclick'],68,
     {hh:'1010101010101010',sn:'0000300000003000',kk:'1000000010000000'}),
-  card('gspace','留白',['慢歌','橋段','一拍一下'],68,{hh:'1000000010000000',kk:'1000000000000000'}),
+  card('gspace','留白',['慢歌','橋段','留白'],68,{hh:'1000000010000000',kk:'1000000000000000'}),
   card('f1','一拍 tom 下行',['中板','主歌'],92,{tm:'0000000000001123'},{kind:'fill'}),
   card('f3','整小節 tom 下行',['中板','副歌'],92,
     {sn:'1100000000000000',tm:'0011112222333333',kk:'1000000000000000'},{kind:'fill'}),
@@ -195,6 +195,18 @@ A(mg.songs[0].sections[1].grooveRef&&mg.songs[0].sections[1].fillRef,'舊段落�
 
 // ================= 七軌與新音色 =================
 A(M.LANE_KEYS.join()==='cr,ri,oh,hh,tm,sn,kk','七軌，crash 排最上面');
+// 標籤表
+const feel=M.TAG_GROUPS.find(g=>g.key==='feel').tags;
+A(feel.includes('four on the floor'),'打法特徵有 four on the floor（大鼓四分）');
+A(!feel.includes('一拍一下'),'含糊的「一拍一下」拿掉了（沒講是哪個肢體）');
+A(feel.includes('rimclick')&&feel.includes('留白'),'rimclick 與留白進了打法特徵');
+A(!feel.some(t=>/shuffle|6-8|切分|ghost/.test(t)),'shuffle／大鼓切分／ghost 都不當瀏覽分區');
+A(new Set(M.ALL_TAGS).size===M.ALL_TAGS.length,'三組標籤之間沒有重複的名字');
+A(M.normCard({id:'t',name:'x',tags:['一拍一下','慢歌'],pattern:{}}).tags.join()==='留白,慢歌',
+  '舊的「一拍一下」會自動改名成「留白」，不是靜默丟掉');
+A(M.normCard({id:'t',name:'x',tags:['留白','一拍一下'],pattern:{}}).tags.join()==='留白',
+  '改名撞到既有標籤時不會出現重複');
+A(M.normCard({id:'t',name:'x',tags:['亂寫的標籤'],pattern:{}}).tags.length===0,'不認得的標籤還是會被擋掉');
 A(M.SAMPLE_FILES.crash==='crash.mp3'&&M.SAMPLE_FILES.rimclick==='rimclick.mp3','新取樣有掛進來');
 A(fs.existsSync(path.join(ROOT,'samples/crash.mp3'))&&fs.existsSync(path.join(ROOT,'samples/rimclick.mp3')),'兩個 mp3 真的在 samples/');
 A(M.cycle('sn',0)===1&&M.cycle('sn',2)===3&&M.cycle('sn',3)===0,'小鼓連點：重音→ghost→rimclick→空白');
