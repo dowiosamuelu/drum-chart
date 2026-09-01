@@ -110,18 +110,20 @@
   .dname.auto { font-weight:500; color:#6b6960; }   /* 自動描述，不是人取的名字 */
   .dbpm { font-size:11px; color:var(--muted); flex-shrink:0; }
   /* 操作是次要的，平常讓路給譜；滑上去才出現 */
-  .dbtns { display:flex; gap:4px; flex-shrink:0; opacity:0; transition:opacity .12s; }
+  .dbtns { display:flex; gap:4px; flex-shrink:0; transition:opacity .12s; }
+  .dcard .dbtns { opacity:0; }            /* 只在卡片裡才平常隱藏——彈窗裡的同名區塊要一直看得見 */
   .dcard:hover .dbtns, .dcard:focus-within .dbtns { opacity:1; }
-  @media (hover:none){ .dbtns { opacity:1; } }
+  @media (hover:none){ .dcard .dbtns { opacity:1; } }
   .pickerlist .dbtns { opacity:1; }
   .dbtns button { padding:2px 8px; font-size:11px; }
   /* 收藏：固定在卡片右上角。收藏過的一直看得到，沒收藏的滑上去才出現 */
   .fav { border:0; background:transparent; color:var(--beat); font-size:15px; line-height:1;
-         padding:1px 2px; margin-left:2px; flex-shrink:0; opacity:0; transition:opacity .12s, color .12s; }
+         padding:1px 2px; margin-left:2px; flex-shrink:0; transition:opacity .12s, color .12s; }
+  .dcard .fav { opacity:0; }
   .fav:hover { background:transparent; color:var(--danger); }
   .dcard:hover .fav { opacity:1; }
   .fav.on { opacity:1; color:var(--danger); }
-  @media (hover:none){ .fav { opacity:1; } }
+  @media (hover:none){ .dcard .fav { opacity:1; } }
   .phright button.on { color:var(--accent); background:var(--accent-soft); border-color:var(--accent); }
   /* 標籤退成一行小字：pill 太重，而且會跟側欄「可點的篩選 pill」搞混 */
   .dmeta, .dnote { font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -210,6 +212,7 @@
   dialog label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
   dialog input, dialog textarea { width:100%; }
   dialog .dlg-btns { display:flex; justify-content:space-between; margin-top:16px; gap:8px; flex-wrap:wrap; }
+  .dlgacts { display:flex; gap:6px; flex-wrap:wrap; }
   .pickerlist { max-height:52vh; overflow-y:auto; margin-top:10px; }
   .pickerlist .dcard { cursor:pointer; margin-bottom:8px; }
   .pickerlist .dcard:hover { border-color:var(--accent); }
@@ -852,7 +855,7 @@ function openCardDialog(id){
       </div>
     </div>
     <div class="dlg-btns">
-      <span class="dbtns">
+      <span class="dlgacts">
         <button id="cCopy">${ro?"做我自己的版本":"複製為新卡"}</button>
         <button id="cLink">複製分享連結</button>
         ${(data.admin&&c.official)?`<button id="cArch" class="danger">${c.archived?"取消封存":"從官方庫移除"}</button>`:""}

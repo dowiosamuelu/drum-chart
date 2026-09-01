@@ -266,7 +266,14 @@ M.mergeLibrary(FIX); A(M.isFav('g8'),'收藏在合併官方庫之後還在'); M.
 A(/--bg:#f7f7f5/.test(src)&&!/#fdf6ec|#ece3cf/.test(src),'Linear／Notion 色票，舊色碼沒回流');
 A(/\.mini \{[^}]*overflow-y:hidden/.test(src),'小譜的捲軸關著');
 A(/\.varlist \{[^}]*border-left/.test(src),'家族的共用左側軌還在');
-A(/\.dcard:hover \.dbtns/.test(src),'操作按鈕 hover 才出現');
+A(/\.dcard:hover \.dbtns/.test(src),'卡片上的操作按鈕 hover 才出現');
+// 這裡曾經出過一個 bug：彈窗沿用 .dbtns，而 .dbtns 的 opacity:0 沒有限定在卡片裡，
+// 於是彈窗底部那三顆（複製／分享／刪除）看不見卻點得到。
+A(!/(^|\n)\s*\.dbtns \{[^}]*opacity:0/.test(src),'「平常隱藏」的規則有限定在 .dcard 裡，不會外洩到彈窗');
+A(!/(^|\n)\s*\.fav \{[^}]*opacity:0/.test(src),'愛心的隱藏規則同樣有限定範圍');
+A(/\.dcard \.dbtns \{ opacity:0/.test(src)&&/\.dcard \.fav \{ opacity:0/.test(src),'兩個隱藏規則都掛在 .dcard 底下');
+const dlg=src.match(/<span class="dlgacts">[\s\S]*?<\/span>/);
+A(dlg&&/id="cDel"/.test(dlg[0]),'刪除鍵在彈窗自己的按鈕列 .dlgacts 裡，不再借用卡片的 class');
 
 
 // ================= 名字選填、自動描述 =================
