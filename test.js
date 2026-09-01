@@ -322,6 +322,22 @@ N.filt.q='';
 A(/name:"",\s*kind:filt.kind/.test(src),'＋新增卡片預設不取名');
 A(/const n=\{ id:uid\(\), name:"", kind:c.kind/.test(src),'做變體預設不取名');
 
+// ================= 沒標籤的卡不能憑空消失 =================
+const U=boot(); await U.syncLibrary();
+U.filt.kind='groove'; U.filt.q=''; U.filt.tags=[]; U.filt.fav=false; U.filt.arch=false; U.filt.family=null;
+for(let i=0;i<6;i++) U.data.patterns.push(U.normCard({id:'u'+i,name:'',kind:'groove',tags:[],
+  pattern:U.cardById('g8').pattern}));
+let ub=box(); U.renderBrowse(ub);
+for(let i=0;i<6;i++) A(ub.innerHTML.includes('data-card="u'+i+'"'),'未分類第 '+(i+1)+' 張看得到');
+A(ub.innerHTML.includes('還沒標「打法特徵」'),'未分類有說明為什麼卡在這裡');
+// 有標籤的分區仍然只放代表卡，但「看全部」要標出總數
+for(let i=0;i<6;i++) U.data.patterns.push(U.normCard({id:'t'+i,name:'',kind:'groove',tags:['16 beat'],
+  pattern:U.cardById('g8').pattern}));
+ub=box(); U.renderBrowse(ub);
+const sect16=ub.innerHTML.split('<section class="sect">').find(x=>x.includes('<h3>16 beat</h3>'));
+A((sect16.match(/class="dcard/g)||[]).length===U.MAX_PER_SECTION,'有標籤的分區仍然只放 '+U.MAX_PER_SECTION+' 張代表卡');
+A(/看全部 \d+ 張/.test(sect16),'「看全部」標出總數，才知道底下還有多少');
+
 // ================= 變體要找得到 =================
 const V=boot(); await V.syncLibrary();
 V.filt.kind='groove'; V.filt.q=''; V.filt.tags=[]; V.filt.fav=false; V.filt.arch=false; V.filt.family=null;

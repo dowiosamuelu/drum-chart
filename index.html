@@ -775,12 +775,17 @@ function fillCtrlHtml(){
 function renderBrowse(el){
   const group=TAG_GROUPS.find(g=>g.key===axis) || TAG_GROUPS[2];
   const pool=data.patterns.filter(c=>c.kind===filt.kind && (!c.archived||filt.arch));
+  // 「未分類」不設上限：那不是一個瀏覽分類，是**待整理清單**，而且沒有標籤可以「看全部」，
+  //   卡住就會完全撈不回來（第 4 張以後憑空消失）。其餘分區只放代表卡，多的走「看全部」。
   const sect=(title,all,tag)=>{
-    let reps=all.filter(c=>!c.parent).slice(0,MAX_PER_SECTION);
-    if(!reps.length) reps=all.slice(0,MAX_PER_SECTION);   // 這一類只有變體時就秀變體
+    const cap=tag?MAX_PER_SECTION:Infinity;
+    let reps=all.filter(c=>!c.parent).slice(0,cap);
+    if(!reps.length) reps=all.slice(0,cap);              // 這一類只有變體時就秀變體
+    const more=all.length-reps.length;
     return `<section class="sect">
       <div class="secthead"><h3>${escapeHtml(title)}</h3><span class="sectn">${all.length} 張</span>
-        ${tag&&all.length>reps.length?`<button data-all="${escapeHtml(tag)}">看全部 ▸</button>`:""}</div>
+        ${tag&&more>0?`<button data-all="${escapeHtml(tag)}">看全部 ${all.length} 張 ▸</button>`:""}</div>
+      ${tag?"":'<div class="tip" style="margin:0 0 8px">還沒標「打法特徵」的卡都在這裡。標了才會分到上面的類別。</div>'}
       <div class="sectgrid">${reps.map(c=>cardHtml(c,{flat:true,showVariants:true})).join("")}</div>
     </section>`;
   };
