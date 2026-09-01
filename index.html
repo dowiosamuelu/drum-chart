@@ -125,6 +125,8 @@
   .phright button.on { color:var(--accent); background:var(--accent-soft); border-color:var(--accent); }
   /* 標籤退成一行小字：pill 太重，而且會跟側欄「可點的篩選 pill」搞混 */
   .dmeta, .dnote { font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .famlink { border:0; background:transparent; color:var(--accent); font-size:11px; padding:0 0 0 6px; line-height:1; }
+  .famlink:hover { background:transparent; text-decoration:underline; }
   .dmeta { margin-top:2px; }
   .dnote { font-size:12px; margin-top:6px; }
 
@@ -671,9 +673,9 @@ function cardHtml(c, opt){ opt=opt||{};
     ${(()=>{ const kids=opt.showVariants?childrenOf(c.id).filter(k=>!k.archived).length:0;
         // 沒取名的基礎卡標題已經是標籤了，就別再重覆一次
         const bits=(auto&&!c.parent)?[]:c.tags.slice();
-        if(kids) bits.push(kids+" 個變體");
         if(c.official) bits.unshift("官方"); if(c.publish) bits.unshift("待發佈"); if(c.archived) bits.unshift("已封存");
-        return bits.length?`<div class="dmeta">${escapeHtml(bits.join(" · "))}</div>`:""; })()}
+        const link=kids?`<button class="famlink" data-fam="${c.id}">${kids} 個變體 ▸</button>`:"";
+        return (bits.length||link)?`<div class="dmeta">${escapeHtml(bits.join(" · "))}${link}</div>`:""; })()}
     ${miniGridHtml(c.pattern, only)}
     ${c.note?`<div class="dnote">${escapeHtml(c.note)}</div>`:""}
   </div>`;
@@ -695,6 +697,8 @@ function wireCardButtons(root,opt){ opt=opt||{};
     const c=cardById(b.dataset.variant); if(c) makeVariant(c); }; });
   root.querySelectorAll("[data-edit]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
     openCardDialog(b.dataset.edit); }; });
+  root.querySelectorAll("[data-fam]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
+    showFamily(b.dataset.fam); }; });
   root.querySelectorAll("[data-fav]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
     toggleFav(b.dataset.fav); const on=isFav(b.dataset.fav);
     b.classList.toggle("on",on); b.textContent=on?"♥":"♡";
@@ -702,7 +706,10 @@ function wireCardButtons(root,opt){ opt=opt||{};
 }
 
 // ---------- 節奏庫：篩選與卡片牆 ----------
-let filt={ kind:"groove", q:"", tags:[], fav:false, arch:false };
+let filt={ kind:"groove", q:"", tags:[], fav:false, arch:false, family:null };
+// 只看某一個家族（基礎卡 ＋ 它的變體）。變體不出現在分類瀏覽的首頁，
+// 所以基礎卡上的「N 個變體」就是進來這裡的入口。
+function showFamily(id){ filt.family=id; renderGallery(); window.scrollTo({top:0,behavior:"smooth"}); }
 // 「配過門」是播放設定，不是卡片的屬性：挑一次，之後點哪張節奏都用它一起聽
 const play={ fill:null };
 function loopFillCard(){ const c=play.fill&&cardById(play.fill); return (c&&!c.archived)?c:null; }
@@ -731,16 +738,16 @@ const MAX_PER_SECTION=3;
 // 過門沒有「打法特徵」標籤，而「適用段落」對過門語意不清，所以預設用「速度感」分區
 function defaultAxis(kind){ return kind==="fill" ? "speed" : "feel"; }   // 過門不一定有「適用段落」，用速度感分區比較實在
 let axis=defaultAxis("groove");
-function filtering(){ return !!(filt.q || filt.tags.length || filt.fav); }
+function filtering(){ return !!(filt.q || filt.tags.length || filt.fav || filt.family); }
 
 function renderGallery(){
   const el=document.getElementById("gallery"), head=document.getElementById("phright"),
         title=document.getElementById("galleryTitle");
   if(filtering()){
     const n=renderWall(el);
-    title.textContent="篩選結果";
+    title.textContent=filt.family?"家族":"篩選結果";
     head.innerHTML=fillCtrlHtml()+`<span>${n} 張</span><button id="backBrowse">回到分類瀏覽</button>`;
-    head.querySelector("#backBrowse").onclick=()=>{ filt.q=""; filt.tags=[]; filt.fav=false;
+    head.querySelector("#backBrowse").onclick=()=>{ filt.q=""; filt.tags=[]; filt.fav=false; filt.family=null;
       document.getElementById("searchBox").value=""; document.getElementById("favOnly").checked=false;
       renderFilters(); renderGallery(); };
   } else {
@@ -783,16 +790,20 @@ function renderBrowse(el){
   if(rest.length) html+=sect("未分類",rest,null);
   el.innerHTML = html || '<div class="empty">這個庫還沒有卡片。按「＋ 新增卡片」建一張。</div>';
   el.querySelectorAll("[data-all]").forEach(b=>{ b.onclick=()=>{
-    filt.tags=[b.dataset.all]; renderFilters(); renderGallery(); window.scrollTo({top:0,behavior:"smooth"}); }; });
+    filt.family=null; filt.tags=[b.dataset.all]; renderFilters(); renderGallery(); window.scrollTo({top:0,behavior:"smooth"}); }; });
   return pool.length;
 }
 
 // 平鋪卡片牆：篩選／搜尋時用，家族連著變體一起顯示
 function renderWall(el){
-  const bases=data.patterns.filter(c=>!c.parent && c.kind===filt.kind && (!c.archived||filt.arch));
+  const fam=filt.family?cardById(filt.family):null;
+  const bases=fam ? [fam]
+    : data.patterns.filter(c=>!c.parent && c.kind===filt.kind && (!c.archived||filt.arch));
   let html="", n=0;
   bases.forEach(b=>{
-    const kids=childrenOf(b.id).filter(c=>!c.archived||filt.arch).filter(matches), bm=matches(b);
+    // 看單一家族時不再套標籤篩選，不然變體可能因為標籤不同而被濾掉
+    const kids=childrenOf(b.id).filter(c=>!c.archived||filt.arch).filter(c=>fam||matches(c));
+    const bm=fam||matches(b);
     if(!bm && !kids.length) return;
     html+='<div class="fam">'+cardHtml(b)
         +(kids.length?'<div class="varlist">'+kids.map(k=>cardHtml(k)).join("")+"</div>":"")+"</div>";
@@ -806,7 +817,7 @@ function makeVariant(c){
   const base=c.parent||c.id;   // 變體只做一層，不做巢狀
   const n={ id:uid(), name:"", kind:c.kind, tags:c.tags.slice(), parent:base, note:"", author:data.me||"",
     official:false, archived:false, publish:false, pattern:structuredClone(c.pattern) };
-  data.patterns.push(n); save(); renderGallery(); openCardDialog(n.id);
+  data.patterns.push(n); save(); filt.family=base; renderGallery(); openCardDialog(n.id);
 }
 
 // ---------- 卡片編輯彈窗 ----------
@@ -1161,11 +1172,11 @@ document.querySelectorAll(".navtab").forEach(b=>{ b.onclick=()=>showView(b.datas
 function syncKindSeg(){ document.getElementById("kindSeg").querySelectorAll("button")
   .forEach(b=>b.classList.toggle("on", b.dataset.kind===filt.kind)); }
 document.getElementById("kindSeg").querySelectorAll("button").forEach(b=>{
-  b.onclick=()=>{ filt.kind=b.dataset.kind; axis=defaultAxis(filt.kind); syncKindSeg(); renderGallery(); };
+  b.onclick=()=>{ filt.kind=b.dataset.kind; filt.family=null; axis=defaultAxis(filt.kind); syncKindSeg(); renderGallery(); };
 });
 document.getElementById("searchBox").oninput=e=>{ filt.q=e.target.value.trim(); renderGallery(); };
 document.getElementById("favOnly").onchange=e=>{ filt.fav=e.target.checked; renderGallery(); };
-document.getElementById("clearFilt").onclick=()=>{ filt.q=""; filt.tags=[]; filt.fav=false;
+document.getElementById("clearFilt").onclick=()=>{ filt.q=""; filt.tags=[]; filt.fav=false; filt.family=null;
   document.getElementById("searchBox").value=""; document.getElementById("favOnly").checked=false;
   renderFilters(); renderGallery(); };
 document.getElementById("newCard").onclick=()=>{

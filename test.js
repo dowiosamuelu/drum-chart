@@ -56,6 +56,7 @@ global.navigator={}; global.alert=()=>{}; global.confirm=()=>true; global.prompt
 global.AudioContext=function(){ return {currentTime:0,state:'running',createBufferSource:()=>({connect(){},start(){}}),
   createGain:()=>({gain:{},connect(){}}),decodeAudioData:()=>Promise.resolve({})}; };
 global.window.AudioContext=global.AudioContext;
+global.window.scrollTo=()=>{};
 global.setInterval=()=>1; global.clearInterval=()=>{};
 let served=FIX, libFails=false;
 global.fetch=(u)=>{ if(String(u).includes('library.json')){
@@ -68,7 +69,7 @@ const EXPORTS='{data,filt,play,cardById,childrenOf,matches,encCard,decCard,songP
   'MAX_PER_SECTION,defaultAxis,filtering,TAG_GROUPS,ALL_TAGS,fromV3,migrate,normCard,defaultData,syncLibrary,'+
   'mergeLibrary,receiveCard,takePastedLink,readOnly,publishSet,cardPayload,picking,mergedBar,phrase,isFav,'+
   'toggleFav,cellGlyph,cycle,SAMPLE_FILES,emptyPattern,trans,playSeq,stopTransport,loopFillCard,fillCtrlHtml,'+
-  'displayName,describeDiff,changedLanes,isAutoName}';
+  'displayName,describeDiff,changedLanes,isAutoName,showFamily,childrenOf}';
 function boot(){ store={}; return new Function('return (function(){ '+body+'\n; return '+EXPORTS+'; })()')(); }
 const A=(c,m)=>{ if(!c) throw new Error('FAIL: '+m); console.log('ok -',m); };
 const box=()=>({ innerHTML:'', querySelectorAll(){ return []; } });
@@ -313,6 +314,26 @@ N.filt.q='';
 // 新卡與變體預設不取名
 A(/name:"",\s*kind:filt.kind/.test(src),'＋新增卡片預設不取名');
 A(/const n=\{ id:uid\(\), name:"", kind:c.kind/.test(src),'做變體預設不取名');
+
+// ================= 變體要找得到 =================
+const V=boot(); await V.syncLibrary();
+V.filt.kind='groove'; V.filt.q=''; V.filt.tags=[]; V.filt.fav=false; V.filt.arch=false; V.filt.family=null;
+let vb=box(); V.renderBrowse(vb);
+A(!vb.innerHTML.includes('data-card="g8g"'),'分類瀏覽首頁只放基礎卡，變體不出現（刻意的）');
+A(vb.innerHTML.includes('data-fam="g8"')&&vb.innerHTML.includes('個變體'),'但基礎卡上的「N 個變體」是可點的入口');
+V.showFamily('g8');
+A(V.filtering()&&V.filt.family==='g8','點了就進入那個家族的檢視');
+vb=box(); const vn=V.renderWall(vb);
+A(vb.innerHTML.includes('data-card="g8"')&&vb.innerHTML.includes('data-card="g8g"'),'家族檢視看得到基礎卡與變體');
+A(vn===1+V.childrenOf('g8').length,'家族檢視只有這一家（'+vn+' 張）');
+A(!vb.innerHTML.includes('data-card="ght"'),'別家的卡不會混進來');
+// 變體的標籤跟父卡不同時也不能被濾掉
+V.cardById('g8g').tags=['快歌'];
+vb=box(); V.renderWall(vb);
+A(vb.innerHTML.includes('data-card="g8g"'),'看家族時不套標籤篩選，標籤不同的變體照樣看得到');
+V.filt.family=null;
+A(!V.filtering(),'清掉家族就回到分類瀏覽');
+A(/filt\.family=base; renderGallery\(\); openCardDialog/.test(src),'做完變體會留在那個家族裡，關掉彈窗不會找不到');
 
 console.log('\n全部通過（'+REAL.patterns.length+' 張官方卡）');
 })().catch(e=>{ console.error('\n'+e.message); process.exit(1); });
