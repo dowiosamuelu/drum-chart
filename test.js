@@ -76,7 +76,7 @@ const EXPORTS='{data,filt,play,cardById,childrenOf,matches,encCard,decCard,songP
   'mergeLibrary,receiveCard,takePastedLink,readOnly,publishSet,cardPayload,picking,mergedBar,phrase,isFav,'+
   'toggleFav,cellGlyph,cycle,SAMPLE_FILES,emptyPattern,trans,playSeq,stopTransport,loopFillCard,fillCtrlHtml,'+
   'displayName,describeDiff,changedLanes,isAutoName,showFamily,childrenOf,fireStep,chokeOpenHats,openHats,buffers,CHOKE,'+
-  'METERS,METER_KEYS,meterOf,meterKey,reMeter,stepDur,sameMeter,gridHtml,normPattern,mkPat,moveCard,blocks,publishSet}';
+  'METERS,METER_KEYS,meterOf,meterKey,reMeter,stepDur,sameMeter,gridHtml,normPattern,mkPat,moveCard,blocks,publishSet,AXES}';
 function boot(){ store={}; return new Function('return (function(){ '+body+'\n; return '+EXPORTS+'; })()')(); }
 const A=(c,m)=>{ if(!c) throw new Error('FAIL: '+m); console.log('ok -',m); };
 const box=()=>({ innerHTML:'', querySelectorAll(){ return []; } });
@@ -146,6 +146,19 @@ A(sects.every(x=>(x.match(/class="dcard/g)||[]).length<=M.MAX_PER_SECTION),'每�
 A(sects.every(x=>!/class="dcard variant"/.test(x)),'代表卡都是基礎卡');
 A(b.innerHTML.includes('個變體'),'基礎卡標出底下有幾個變體');
 A(M.defaultAxis('fill')==='speed'&&M.defaultAxis('groove')==='feel','過門用速度感分區，節奏用打法特徵');
+// 拍號當第四個分區依據：6/8 和 3/4 沒有「打法特徵」可標
+A(M.AXES.map(g=>g.key).join()==='speed,part,feel,meter','四個分區依據');
+M.data.patterns.push(M.normCard({id:'m68',name:'六八',kind:'groove',tags:[],pattern:M.mkPat(60,{hh:'101010101010'},'6/8')}));
+M.data.patterns.push(M.normCard({id:'m34',name:'三四',kind:'groove',tags:[],pattern:M.mkPat(90,{hh:'100010001000'},'3/4')}));
+let ab=box();
+M.filt.tags=[]; M.filt.meter=null;
+A(!M.filtering(),'拍號沒選時不算篩選');
+M.filt.meter='6/8';
+A(M.filtering(),'選了拍號算一種篩選');
+ab=box(); M.renderWall(ab);
+A(ab.innerHTML.includes('data-card="m68"')&&!ab.innerHTML.includes('data-card="m34"'),'只留 6/8 的卡');
+M.filt.meter=null;
+A(!!M.AXES.find(g=>g.key==='meter'),'拍號軸在 AXES 裡，可以當分區依據');
 
 // ================= 篩選：組內 OR、組間 AND =================
 M.filt.tags=['慢歌','副歌'];
@@ -318,7 +331,9 @@ A(N.displayName(vh)==='踩鈸 八分→十六分','變體：'+N.displayName(vh))
 const vr=un('vr','g8',{hh:'0000000000000000',ri:'1010101010101010'});
 A(N.displayName(vr)==='換成 ride','變體：'+N.displayName(vr));
 const vm=un('vm','g8',{sn:'0000300000003000'});
-A(N.displayName(vm)==='小鼓改 rimclick','變體：'+N.displayName(vm));
+A(N.displayName(vm)==='rimclick 2 4','變體講 rimclick 落點：'+N.displayName(vm));
+const vm2=un('vm2','g8',{sn:'0000300000001000'});
+A(N.displayName(vm2)==='rimclick 2','只有部分改成 rimclick 也分得出來：'+N.displayName(vm2));
 const vc=un('vc','g8',{cr:'1000000000000000'});
 A(N.displayName(vc)==='1 crash','變體講 crash 落點：'+N.displayName(vc));
 const vsame=un('vsame','g8',{});

@@ -407,6 +407,8 @@ const TAG_GROUPS=[
 // 標籤改名時的對照，免得舊卡上的標籤在載入時被靜默丟掉
 const TAG_RENAMES={ "一拍一下":"留白" };
 const TAG_GROUP_OF={}; TAG_GROUPS.forEach(g=>g.tags.forEach(t=>TAG_GROUP_OF[t]=g.key));
+const METER_AXIS={ key:"meter", label:"拍號" };
+const AXES=TAG_GROUPS.concat([METER_AXIS]);
 const ALL_TAGS=TAG_GROUPS.flatMap(g=>g.tags);
 
 // ---------- 官方庫 ----------
@@ -718,7 +720,7 @@ function describeDiff(c,b){
   if(ch("sn")){
     if(ghost(cp)&&!ghost(bp)) out.push("ghost "+posOrCount(hitPos(cp,"sn",v=>v===2)));
     else if(!ghost(cp)&&ghost(bp)) out.push("拿掉 ghost");
-    else if(rim(cp)&&!rim(bp)) out.push("小鼓改 rimclick");
+    else if(rim(cp)&&!rim(bp)) out.push("rimclick "+posOrCount(hitPos(cp,"sn",v=>v===3)));
     else out.push("小鼓 "+posOrCount(hitPos(cp,"sn")));
   }
   if(ch("kk")) out.push("大鼓 "+posOrCount(hitPos(cp,"kk")));
@@ -817,7 +819,7 @@ function wireCardButtons(root,opt){ opt=opt||{};
 }
 
 // ---------- 節奏庫：篩選與卡片牆 ----------
-let filt={ kind:"groove", q:"", tags:[], fav:false, arch:false, family:null };
+let filt={ kind:"groove", q:"", tags:[], fav:false, arch:false, family:null, meter:null };
 let sortOn=false;   // 排序是低頻的整理動作，開成一個模式比在每張卡上多塞兩顆按鈕乾淨
 // 只看某一個家族（基礎卡 ＋ 它的變體）。變體不出現在分類瀏覽的首頁，
 // 所以基礎卡上的「N 個變體」就是進來這裡的入口。
@@ -837,6 +839,7 @@ function renderFilters(){
 function matches(c){
   if(c.kind!==filt.kind) return false;
   if(filt.fav && !isFav(c.id)) return false;
+  if(filt.meter && meterKey(c.pattern)!==filt.meter) return false;
   if(filt.q){ const q=filt.q.toLowerCase();
     if(!((displayName(c)+" "+c.note+" "+c.tags.join(" ")).toLowerCase().includes(q))) return false; }
   for(const g of TAG_GROUPS){   // 組內 OR、組間 AND
@@ -850,23 +853,23 @@ const MAX_PER_SECTION=3;
 // 過門沒有「打法特徵」標籤，而「適用段落」對過門語意不清，所以預設用「速度感」分區
 function defaultAxis(kind){ return kind==="fill" ? "speed" : "feel"; }   // 過門不一定有「適用段落」，用速度感分區比較實在
 let axis=defaultAxis("groove");
-function filtering(){ return !!(filt.q || filt.tags.length || filt.fav || filt.family); }
+function filtering(){ return !!(filt.q || filt.tags.length || filt.fav || filt.family || filt.meter); }
 
 function renderGallery(){
   const el=document.getElementById("gallery"), head=document.getElementById("phright"),
         title=document.getElementById("galleryTitle");
   if(filtering()){
     const n=renderWall(el);
-    title.textContent=filt.family?"家族":"篩選結果";
+    title.textContent=filt.family?"家族":(filt.meter?METERS[filt.meter].label:"篩選結果");
     head.innerHTML=fillCtrlHtml()+`<span>${n} 張</span><button id="backBrowse">回到分類瀏覽</button>`;
-    head.querySelector("#backBrowse").onclick=()=>{ filt.q=""; filt.tags=[]; filt.fav=false; filt.family=null;
+    head.querySelector("#backBrowse").onclick=()=>{ filt.q=""; filt.tags=[]; filt.fav=false; filt.family=null; filt.meter=null;
       document.getElementById("searchBox").value=""; document.getElementById("favOnly").checked=false;
       renderFilters(); renderGallery(); };
   } else {
     const n=renderBrowse(el);
     title.textContent="分類瀏覽";
     head.innerHTML=fillCtrlHtml()+`<span>共 ${n} 張</span>　分區依據
-      <select id="axisSel">${TAG_GROUPS.map(g=>`<option value="${g.key}"${g.key===axis?" selected":""}>${g.label}</option>`).join("")}</select>`;
+      <select id="axisSel">${AXES.map(g=>`<option value="${g.key}"${g.key===axis?" selected":""}>${g.label}</option>`).join("")}</select>`;
     head.querySelector("#axisSel").onchange=e=>{ axis=e.target.value; renderGallery(); };
   }
   wireCardButtons(el,{playOnClick:true});
@@ -882,7 +885,7 @@ function fillCtrlHtml(){
 
 // 分區瀏覽：把分類法直接變成瀏覽結構，一眼看到「節奏分成哪幾類」
 function renderBrowse(el){
-  const group=TAG_GROUPS.find(g=>g.key===axis) || TAG_GROUPS[2];
+  const group=AXES.find(g=>g.key===axis) || TAG_GROUPS[2];
   const pool=data.patterns.filter(c=>c.kind===filt.kind && (!c.archived||filt.arch));
   // 「未分類」不設上限：那不是一個瀏覽分類，是**待整理清單**，而且沒有標籤可以「看全部」，
   //   卡住就會完全撈不回來（第 4 張以後憑空消失）。其餘分區只放代表卡，多的走「看全部」。
@@ -899,15 +902,22 @@ function renderBrowse(el){
     </section>`;
   };
   let html="";
-  group.tags.forEach(t=>{
-    const all=pool.filter(c=>c.tags.includes(t));
-    if(all.length) html+=sect(t,all,t);            // 空的分區直接不顯示，庫小時才不會一片空白
-  });
-  const rest=pool.filter(c=>!c.tags.some(t=>group.tags.includes(t)));
-  if(rest.length) html+=sect("未分類",rest,null);
+  if(group.key==="meter"){                          // 每張卡一定有拍號，不會有未分類
+    METER_KEYS.forEach(k=>{ const all=pool.filter(c=>meterKey(c.pattern)===k);
+      if(all.length) html+=sect(METERS[k].label,all,"meter:"+k); });
+  } else {
+    group.tags.forEach(t=>{
+      const all=pool.filter(c=>c.tags.includes(t));
+      if(all.length) html+=sect(t,all,t);          // 空的分區直接不顯示，庫小時才不會一片空白
+    });
+    const rest=pool.filter(c=>!c.tags.some(t=>group.tags.includes(t)));
+    if(rest.length) html+=sect("未分類",rest,null);
+  }
   el.innerHTML = html || '<div class="empty">這個庫還沒有卡片。按「＋ 新增卡片」建一張。</div>';
   el.querySelectorAll("[data-all]").forEach(b=>{ b.onclick=()=>{
-    filt.family=null; filt.tags=[b.dataset.all]; renderFilters(); renderGallery(); window.scrollTo({top:0,behavior:"smooth"}); }; });
+    const v=b.dataset.all; filt.family=null; filt.tags=[]; filt.meter=null;
+    if(v.startsWith("meter:")) filt.meter=v.slice(6); else filt.tags=[v];
+    renderFilters(); renderGallery(); window.scrollTo({top:0,behavior:"smooth"}); }; });
   return pool.length;
 }
 
@@ -1309,12 +1319,12 @@ document.querySelectorAll(".navtab").forEach(b=>{ b.onclick=()=>showView(b.datas
 function syncKindSeg(){ document.getElementById("kindSeg").querySelectorAll("button")
   .forEach(b=>b.classList.toggle("on", b.dataset.kind===filt.kind)); }
 document.getElementById("kindSeg").querySelectorAll("button").forEach(b=>{
-  b.onclick=()=>{ filt.kind=b.dataset.kind; filt.family=null; axis=defaultAxis(filt.kind); syncKindSeg(); renderGallery(); };
+  b.onclick=()=>{ filt.kind=b.dataset.kind; filt.family=null; filt.meter=null; axis=defaultAxis(filt.kind); syncKindSeg(); renderGallery(); };
 });
 document.getElementById("searchBox").oninput=e=>{ filt.q=e.target.value.trim(); renderGallery(); };
 document.getElementById("favOnly").onchange=e=>{ filt.fav=e.target.checked; renderGallery(); };
 document.getElementById("sortMode").onchange=e=>{ sortOn=e.target.checked; stopTransport(); renderGallery(); };
-document.getElementById("clearFilt").onclick=()=>{ filt.q=""; filt.tags=[]; filt.fav=false; filt.family=null;
+document.getElementById("clearFilt").onclick=()=>{ filt.q=""; filt.tags=[]; filt.fav=false; filt.family=null; filt.meter=null;
   document.getElementById("searchBox").value=""; document.getElementById("favOnly").checked=false;
   renderFilters(); renderGallery(); };
 document.getElementById("newCard").onclick=()=>{
