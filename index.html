@@ -755,7 +755,7 @@ function cardHtml(c, opt){ opt=opt||{};
       <button data-mv="-1:${c.id}" title="往前">▲</button>
       <button data-mv="1:${c.id}" title="往後">▼</button>` : `
       ${c.parent?`<button data-ab="${c.id}">對照</button>`:""}
-      <button data-variant="${c.id}">變體</button>
+      <button data-variant="${c.id}">製作變體</button>
       <button data-edit="${c.id}">編輯</button>`);
   return `<div class="dcard${c.parent&&!opt.flat?" variant":""}${sortOn?" sorting":""}" data-card="${c.id}">
     <div class="dhead">
@@ -948,7 +948,7 @@ function openCardDialog(id){
       <h3>變體</h3>
       ${kids.length?`<div class="tip" style="margin:0 0 8px;">這張底下有 ${kids.length} 個變體。</div>`:""}
       <div class="abrow">
-        <button id="mkVariant">＋ 做一個變體</button>
+        <button id="mkVariant">＋ 製作變體</button>
         ${fam.length?`<select id="abSel">${fam.map(x=>`<option value="${x.id}">${escapeHtml(displayName(x))}</option>`).join("")}</select>
           <button id="abPlay">輪流播（聽差別）</button>`:`<span class="tip" style="margin:0;">還沒有同家族的卡可以比較</span>`}
       </div>
