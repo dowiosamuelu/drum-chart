@@ -135,10 +135,11 @@
   /* 唯讀小譜：只畫有打的軌，而且只畫音符——空格不畫盒子，拍線貫穿整張譜 */
   .mini { margin-top:8px; overflow-x:auto; overflow-y:hidden; scrollbar-width:none; }
   .mini::-webkit-scrollbar { display:none; }
-  .mgrid { display:grid; grid-template-columns:42px repeat(16,minmax(11px,1fr)); min-width:228px; }
+  .mgrid { display:grid; min-width:228px; }
   .ml { font-size:10px; color:var(--muted); display:flex; align-items:center; height:14px; }
   .mc { height:14px; display:flex; align-items:center; justify-content:center; font-size:11px; line-height:1; color:var(--text); }
-  .mc.beat, .mn.beat { border-left:1px solid var(--faint); }
+  .mc.beat, .mn.beat { border-left:1px solid var(--beat); }
+  .mc.sub, .mn.sub { border-left:1px solid var(--faint); }
   .mc.c-hh, .mc.c-ri, .mc.c-oh { color:#b4b2ac; }
   .mc.c-cr { color:var(--accent); }
   .mc.c-sn, .mc.c-kk { color:var(--text); }
@@ -186,7 +187,9 @@
   .gp-ctrl { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
   .gp-ctrl .tempo { width:56px; padding:3px 6px; }
   .gridscroll { overflow-x:auto; }
-  .grid { display:grid; grid-template-columns:48px repeat(16, minmax(20px,1fr)); gap:3px; min-width:420px; }
+  .grid { display:grid; gap:3px; min-width:420px; }
+  .gn { font-size:10px; color:var(--muted); text-align:center; line-height:14px; height:14px; }
+  .gn.beat { color:var(--text); font-weight:600; }
   .lane-label { font-size:11px; color:var(--muted); display:flex; align-items:center; }
   .cell { aspect-ratio:1/1; border:1px solid var(--line); border-radius:4px; background:var(--panel-2); cursor:pointer;
           display:flex; align-items:center; justify-content:center; font-size:14px; line-height:1; color:var(--text); user-select:none; }
@@ -353,11 +356,37 @@
 //     sn=snare(1=重音 2=ghost 3=rimclick／cross-stick), kk=kick
 // card = { id, name, kind:"groove"|"fill", tags[], parent, note, author, pattern }
 const LANE_KEYS=["cr","ri","oh","hh","tm","sn","kk"];
-function z(){ return Array(16).fill(0); }
-function emptyPattern(){ return { tempo:90, cr:z(), ri:z(), oh:z(), hh:z(), tm:z(), sn:z(), kk:z() }; }
+
+// 拍號：12 格的網格同時解決 3/4、6/8 和 4/4 三連音（shuffle）——差別只在怎麼分組、
+// 以及 BPM 那一拍等於幾格。
+//   steps 一小節幾格 · beat 一個主拍幾格（＝BPM 的單位）· count 幾格數一下（拍號列的編號）
+const METERS={
+  "4/4":     { steps:16, beat:4, count:4, label:"4/4" },
+  "3/4":     { steps:12, beat:4, count:4, label:"3/4" },
+  "6/8":     { steps:12, beat:6, count:2, label:"6/8" },      // BPM ＝ 附點四分（一小節兩下）
+  "shuffle": { steps:12, beat:3, count:3, label:"4/4 shuffle" },
+};
+const METER_KEYS=Object.keys(METERS);
+const DEFAULT_METER="4/4";
+function meterOf(p){ return METERS[(p&&p.meter)||DEFAULT_METER]||METERS[DEFAULT_METER]; }
+function meterKey(p){ return (p&&METERS[p.meter]) ? p.meter : DEFAULT_METER; }
+
+function z(n){ return Array(n||METERS[DEFAULT_METER].steps).fill(0); }
+function emptyPattern(meter){ const key=METERS[meter]?meter:DEFAULT_METER, n=METERS[key].steps;
+  const p={ tempo:90, meter:key }; LANE_KEYS.forEach(k=>p[k]=z(n)); return p; }
 // 用字串寫譜比陣列好讀："1010101010101010"
-function P(str){ const a=z(), s=String(str).replace(/\s/g,""); for(let i=0;i<16;i++) a[i]=(+s[i])||0; return a; }
-function mkPat(tempo,obj){ const p=emptyPattern(); p.tempo=tempo; for(const k in obj) p[k]=P(obj[k]); return p; }
+function P(str,n){ n=n||METERS[DEFAULT_METER].steps;
+  const a=z(n), s=String(str).replace(/\s/g,""); for(let i=0;i<n;i++) a[i]=(+s[i])||0; return a; }
+function mkPat(tempo,obj,meter){ const p=emptyPattern(meter), n=meterOf(p).steps;
+  p.tempo=tempo; for(const k in obj) p[k]=P(obj[k],n); return p; }
+// 換拍號：格數會變，能留的留、留不下的截掉
+function reMeter(pattern,key){
+  const np=emptyPattern(key); np.tempo=pattern.tempo;
+  const n=Math.min(meterOf(np).steps, meterOf(pattern).steps);
+  LANE_KEYS.forEach(k=>{ for(let i=0;i<n;i++) np[k][i]=pattern[k][i]||0; });
+  return np;
+}
+function stepDur(p,tempo){ return (60/(tempo||p.tempo||90))/meterOf(p).beat; }
 
 // ---------- 標籤（組內 OR、組間 AND） ----------
 // 「打法特徵」的取捨原則：標**你會開口要的東西**，不是標譜面上看得到的東西；
@@ -398,8 +427,12 @@ const KEY="drumchart_v4", KEY_V3="drumchart_v3";
 function uid(){ return Math.random().toString(36).slice(2,8); }
 function escapeHtml(s){ return String(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function hasHits(p){ return !!p && LANE_KEYS.some(k=>p[k]&&p[k].some(Boolean)); }
-function normPattern(p){ const fix=a=>{ a=Array.isArray(a)?a.slice(0,16):[]; while(a.length<16)a.push(0); return a.map(n=>n|0); };
-  const o=emptyPattern(); if(p&&typeof p==="object"){ o.tempo=p.tempo||90; LANE_KEYS.forEach(k=>{ if(Array.isArray(p[k])) o[k]=fix(p[k]); }); } return o; }
+function normPattern(p){
+  const key=(p&&METERS[p.meter])?p.meter:DEFAULT_METER, n=METERS[key].steps;
+  const fix=a=>{ a=Array.isArray(a)?a.slice(0,n):[]; while(a.length<n)a.push(0); return a.map(x=>x|0); };
+  const o=emptyPattern(key);
+  if(p&&typeof p==="object"){ o.tempo=p.tempo||90; LANE_KEYS.forEach(k=>{ if(Array.isArray(p[k])) o[k]=fix(p[k]); }); }
+  return o; }
 function normCard(c){ return { id:c.id||uid(), name:c.name||"", kind:c.kind==="fill"?"fill":"groove",
   tags:Array.isArray(c.tags)?[...new Set(c.tags.map(t=>TAG_RENAMES[t]||t))].filter(t=>ALL_TAGS.includes(t)):[], parent:c.parent||null,
   note:c.note||"", author:c.author||"", pattern:normPattern(c.pattern),
@@ -569,11 +602,11 @@ function playSeq(items, el, tempo, key){
   trans.seq=items; trans.idx=0; trans.step=0; trans.tempo=tempo||items[0].p.tempo||90;
   trans.nextTime=c.currentTime+0.06; trans.el=el; trans.key=key||null;
   if(el){ if(el.tagName==="BUTTON"){ el.dataset.label=el.textContent; el.textContent="停止"; } el.classList.add("playing"); }
-  trans.timer=setInterval(()=>{ const cc=AC(), dur=(60/(trans.tempo||90))/4;
+  trans.timer=setInterval(()=>{ const cc=AC();
     while(trans.nextTime < cc.currentTime+0.1){
-      const it=trans.seq[trans.idx], total=(it.bars||1)*16;
-      fireStep(it.p, trans.step%16, trans.nextTime);
-      trans.nextTime+=dur; trans.step++;
+      const it=trans.seq[trans.idx], M=meterOf(it.p), total=(it.bars||1)*M.steps;
+      fireStep(it.p, trans.step%M.steps, trans.nextTime);
+      trans.nextTime+=stepDur(it.p, trans.tempo); trans.step++;
       if(trans.step>=total){ trans.step=0; trans.idx=(trans.idx+1)%trans.seq.length; }
     }
   }, 25);
@@ -582,15 +615,16 @@ function playToggle(pattern, btn){ playSeq([{p:pattern,bars:1}], btn, pattern.te
 // 過門疊在節奏上：某一格只要過門有東西，那一格整排就換成過門（節奏讓位）；
 // 過門空著的格子就繼續走節奏。所以只佔最後一拍的過門＝前三拍節奏、第四拍過門。
 function mergedBar(g,f){
-  const o=emptyPattern(); o.tempo=g.tempo;
-  for(let s=0;s<16;s++){
+  const key=meterKey(g), o=emptyPattern(key), n=METERS[key].steps; o.tempo=g.tempo;
+  for(let s=0;s<n;s++){
     const src = LANE_KEYS.some(k=>f[k][s]) ? f : g;
     LANE_KEYS.forEach(k=>o[k][s]=src[k][s]);
   }
   return o;
 }
-// 一個樂句：節奏一小節，接一小節「節奏＋過門」，循環
-function phrase(g,f){ return f ? [{p:g,bars:1},{p:mergedBar(g,f),bars:1}] : [{p:g,bars:1}]; }
+// 一個樂句：節奏一小節，接一小節「節奏＋過門」，循環。拍號不同就疊不起來，直接不加過門。
+function sameMeter(a,b){ return meterKey(a)===meterKey(b); }
+function phrase(g,f){ return (f&&sameMeter(g,f)) ? [{p:g,bars:1},{p:mergedBar(g,f),bars:1}] : [{p:g,bars:1}]; }
 
 // ---------- YouTube（選配參考） ----------
 let player=null, apiReady=false, pendingApi=null, pendingRef="";
@@ -611,14 +645,17 @@ function cellGlyph(lane,v){ if(v===0) return "";
   if(lane==="sn") return v===1?"●":v===2?"○":"◇";   // ◇ = rimclick／cross-stick
   if(lane==="kk") return "●";
   return ""; }
-function cellMods(lane,v,s){ return " c-"+lane+(v?" on":"")+(lane==="sn"&&v===2?" ghost":"")+(s%4===0?" beat":""); }
+function cellMods(lane,v,s,M){ M=M||METERS[DEFAULT_METER];
+  return " c-"+lane+(v?" on":"")+(lane==="sn"&&v===2?" ghost":"")
+    +(s%M.beat===0?" beat":(s%M.count===0?" sub":"")); }
 function cycle(lane,v){ if(lane==="sn"||lane==="tm") return (v+1)%4; return v?0:1; }
 
 // 大部分的節奏沒有天然的名字——你被迫寫的其實是「描述」，而描述應該由譜自己生成。
 // 所以名字選填：基礎卡沒取名就用標籤，變體沒取名就講「跟父卡差在哪」。
 const LANE_CN={cr:"crash",ri:"ride",oh:"開鈸",hh:"踩鈸",tm:"tom",sn:"小鼓",kk:"大鼓"};
 const DENSITY={0:"沒有",2:"二分",4:"四分",8:"八分",16:"十六分"};
-function density(a){ const n=a.filter(Boolean).length; return DENSITY[n]||(n+" 下"); }
+function density(a,M){ const n=a.filter(Boolean).length;
+  return (M&&M.label!=="4/4") ? (n+" 下") : (DENSITY[n]||(n+" 下")); }
 function handLane(p){ return p.hh.some(Boolean)?"hh":p.ri.some(Boolean)?"ri":p.tm.some(Boolean)?"tm":null; }
 function changedLanes(c,b){ return LANE_KEYS.filter(k=>c.pattern[k].join()!==b.pattern[k].join()); }
 function describeDiff(c,b){
@@ -626,7 +663,7 @@ function describeDiff(c,b){
   const ch=k=>cp[k].join()!==bp[k].join(), has=(p,k)=>p[k].some(Boolean);
   const hb=handLane(bp), hc=handLane(cp);
   if(hb&&hc&&hb!==hc) out.push("換成 "+LANE_CN[hc]);
-  else if(hb&&hc&&ch(hb)){ const d1=density(bp[hb]), d2=density(cp[hc]);
+  else if(hb&&hc&&ch(hb)){ const M=meterOf(cp), d1=density(bp[hb],M), d2=density(cp[hc],M);
     if(d1!==d2) out.push(LANE_CN[hb]+" "+d1+"→"+d2); }
   const ghost=p=>p.sn.filter(v=>v===2).length, rim=p=>p.sn.filter(v=>v===3).length;
   if(ghost(cp)&&!ghost(bp)) out.push("多了 ghost");
@@ -634,7 +671,8 @@ function describeDiff(c,b){
   if(rim(cp)&&!rim(bp)) out.push("小鼓改 rimclick");
   if(ch("kk")){
     const n1=bp.kk.filter(Boolean).length, n2=cp.kk.filter(Boolean).length;
-    const four=a=>a.filter(Boolean).length===4&&[0,4,8,12].every(i=>a[i]);
+    const M=meterOf(cp);
+    const four=a=>M.label==="4/4"&&a.filter(Boolean).length===4&&[0,4,8,12].every(i=>a[i]);
     if(four(cp.kk)&&!four(bp.kk)) out.push("大鼓四分");
     else if(n2>n1) out.push("大鼓多 "+(n2-n1)+" 顆");
     else if(n2<n1) out.push("大鼓少 "+(n1-n2)+" 顆");
@@ -657,19 +695,24 @@ function isAutoName(c){ return !c.name; }
 
 // 卡片上的唯讀小譜：只畫有打的軌，卡片才不會被空白軌撐高
 function miniGridHtml(p, only){
+  const M=meterOf(p), n=M.steps;
   const used=only ? LANES.filter(([k])=>only.includes(k)) : LANES.filter(([k])=>p[k].some(Boolean));
   if(!used.length) return '<div class="mempty">（還沒點譜，按「編輯」開始）</div>';
-  let h='<div class="mini"><div class="mgrid"><div class="mn"></div>';
-  for(let s=0;s<16;s++) h+=`<div class="mn${s%4===0?" beat":""}">${s%4===0?(s/4+1):""}</div>`;
+  const cols=`style="grid-template-columns:42px repeat(${n},minmax(11px,1fr))"`;
+  let h=`<div class="mini"><div class="mgrid" ${cols}><div class="mn"></div>`;
+  for(let s=0;s<n;s++) h+=`<div class="mn${s%M.beat===0?" beat":(s%M.count===0?" sub":"")}">${s%M.count===0?(s/M.count+1):""}</div>`;
   for(const [key,label] of used){ h+=`<div class="ml">${label}</div>`;
-    for(let s=0;s<16;s++){ const v=p[key][s]; h+=`<div class="mc${cellMods(key,v,s)}">${cellGlyph(key,v)}</div>`; } }
+    for(let s=0;s<n;s++){ const v=p[key][s]; h+=`<div class="mc${cellMods(key,v,s,M)}">${cellGlyph(key,v)}</div>`; } }
   return h+"</div></div>";
 }
 // 彈窗裡的可編輯大格子：六軌全開，才知道還能加什麼
 function gridHtml(p){
-  let h='<div class="gridscroll"><div class="grid">';
+  const M=meterOf(p), n=M.steps;
+  let h=`<div class="gridscroll"><div class="grid" style="grid-template-columns:48px repeat(${n},minmax(20px,1fr))">`;
+  h+='<div class="lane-label"></div>';
+  for(let s=0;s<n;s++) h+=`<div class="gn${s%M.beat===0?" beat":(s%M.count===0?" sub":"")}">${s%M.count===0?(s/M.count+1):""}</div>`;
   for(const [key,label] of LANES){ h+=`<div class="lane-label">${label}</div>`;
-    for(let s=0;s<16;s++){ const v=p[key][s]; h+=`<div class="cell${cellMods(key,v,s)}" data-lane="${key}" data-step="${s}">${cellGlyph(key,v)}</div>`; } }
+    for(let s=0;s<n;s++){ const v=p[key][s]; h+=`<div class="cell${cellMods(key,v,s,M)}" data-lane="${key}" data-step="${s}">${cellGlyph(key,v)}</div>`; } }
   return h+"</div></div>";
 }
 const LEGEND='<div class="legend">點格子切換；小鼓連點輪 ●重音→○ghost→◇rimclick→空白；Tom 連點輪 H→M→L→空白。'+
@@ -688,7 +731,7 @@ function cardHtml(c, opt){ opt=opt||{};
       <button data-edit="${c.id}">編輯</button>` : opt.buttons;
   return `<div class="dcard${c.parent&&!opt.flat?" variant":""}" data-card="${c.id}">
     <div class="dhead">
-      <span class="dtitle"><span class="dname${auto?" auto":""}">${escapeHtml(title)}</span><span class="dbpm">${c.pattern.tempo}</span></span>
+      <span class="dtitle"><span class="dname${auto?" auto":""}">${escapeHtml(title)}</span><span class="dbpm">${c.pattern.tempo}${meterKey(c.pattern)!==DEFAULT_METER?" · "+meterOf(c.pattern).label:""}</span></span>
       <span class="dbtns">${btns}</span>
       <button class="fav${isFav(c.id)?" on":""}" data-fav="${c.id}" title="收藏">${isFav(c.id)?"♥":"♡"}</button></div>
     ${(()=>{ const kids=opt.showVariants?childrenOf(c.id).filter(k=>!k.archived).length:0;
@@ -865,9 +908,11 @@ function openCardDialog(id){
     <label>備註：什麼時候用？要注意什麼？</label>
     <textarea id="cNote" rows="2"${dis}>${escapeHtml(c.note)}</textarea>
     <div class="gp-head"><span class="gp-title ${c.kind==="fill"?"fill":""}">${c.kind==="fill"?"過門 FILL":"節奏 GROOVE"}</span>
-      <span class="gp-ctrl">速度 <input type="number" class="tempo" id="cTempo" value="${c.pattern.tempo}" min="40" max="240"${dis}> BPM
+      <span class="gp-ctrl">拍號 <select id="cMeter"${dis}>${METER_KEYS.map(k=>
+          `<option value="${k}"${k===meterKey(c.pattern)?" selected":""}>${METERS[k].label}</option>`).join("")}</select>
+        速度 <input type="number" class="tempo" id="cTempo" value="${c.pattern.tempo}" min="40" max="240"${dis}> BPM
         <button id="cPlay">播放</button></span></div>
-    ${gridHtml(c.pattern)}${LEGEND}
+    ${gridHtml(c.pattern)}${LEGEND}${meterKey(c.pattern)==="6/8"?'<div class="tip">6/8 的 BPM 是<b>附點四分</b>（一小節兩下），格子是十六分音符。</div>':""}
     <div class="family">
       <h3>變體</h3>
       ${kids.length?`<div class="tip" style="margin:0 0 8px;">這張底下有 ${kids.length} 個變體。</div>`:""}
@@ -904,6 +949,15 @@ function wireCardDialog(c){
   d.querySelector("#cName").onchange=e=>{ c.name=e.target.value.trim(); save(); };
     d.querySelector("#cNote").onchange=e=>{ c.note=e.target.value.trim(); save(); };
     d.querySelector("#cTempo").onchange=e=>{ c.pattern.tempo=Math.min(240,Math.max(40,+e.target.value||90)); e.target.value=c.pattern.tempo; save(); };
+    d.querySelector("#cMeter").onchange=e=>{
+      const key=e.target.value, cur=meterKey(c.pattern);
+      if(key===cur) return;
+      const lose=METERS[key].steps<METERS[cur].steps &&
+        LANE_KEYS.some(k=>c.pattern[k].slice(METERS[key].steps).some(Boolean));
+      if(lose && !confirm("換成 "+METERS[key].label+" 之後格子變少，後面的音符會被截掉。要換嗎？")){
+        e.target.value=cur; return; }
+      c.pattern=reMeter(c.pattern,key); save(); closeCardDialog(); openCardDialog(c.id);
+    };
     d.querySelectorAll("#cTags .chip").forEach(ch=>{ ch.onclick=()=>{ const t=ch.dataset.t;
       c.tags = c.tags.includes(t) ? c.tags.filter(x=>x!==t) : c.tags.concat(t);
       ch.classList.toggle("on"); save(); }; });
@@ -950,12 +1004,13 @@ function deleteCard(c){
 
 // ---------- 分享 ----------
 // 單張卡塞得進網址（一張卡的 JSON 很小）；整庫仍走 .json 檔
-function encCard(c){ const o={n:c.name,k:c.kind,t:c.tags,o:c.note,m:c.pattern.tempo,l:LANE_KEYS.map(k=>c.pattern[k].join(""))};
+function encCard(c){ const o={n:c.name,k:c.kind,t:c.tags,o:c.note,m:c.pattern.tempo,g:meterKey(c.pattern),l:LANE_KEYS.map(k=>c.pattern[k].join(""))};
   return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
 function decCard(s){ s=String(s).replace(/-/g,"+").replace(/_/g,"/");
   const o=JSON.parse(decodeURIComponent(escape(atob(s))));
-  const lanes={}; LANE_KEYS.forEach((k,i)=>lanes[k]=(o.l&&o.l[i])||"0000000000000000");
-  return normCard({ id:uid(), name:o.n, kind:o.k, tags:o.t, note:o.o, pattern:mkPat(o.m||90,lanes) }); }
+  const g=METERS[o.g]?o.g:DEFAULT_METER, lanes={};
+  LANE_KEYS.forEach((k,i)=>lanes[k]=(o.l&&o.l[i])||"");
+  return normCard({ id:uid(), name:o.n, kind:o.k, tags:o.t, note:o.o, pattern:mkPat(o.m||90,lanes,g) }); }
 function shareCardLink(c){
   const url=location.origin+location.pathname+"#c="+encCard(c);
   const done=()=>alert("已複製分享連結，貼給其他鼓手就能直接看到＆聽到這張卡。");
@@ -1025,7 +1080,7 @@ function renderSong(){
 function secPartHtml(sec,kind){
   const ref = kind==="fill"?sec.fillRef:sec.grooveRef, c=cardById(ref), label=kind==="fill"?"過門":"節奏";
   return `<div class="secpart"><div class="ph"><span class="k">${label}</span>
-      ${c?`<b>${escapeHtml(displayName(c))}</b><span class="k">${c.pattern.tempo} BPM${c.archived?" · 已封存":""}</span>
+      ${c?`<b>${escapeHtml(displayName(c))}</b><span class="k">${c.pattern.tempo} BPM${meterKey(c.pattern)!==DEFAULT_METER?" · "+meterOf(c.pattern).label:""}${c.archived?" · 已封存":""}</span>
            <button data-play="${c.id}">試聽</button>`:`<span class="none">（未指定）</span>`}
       <button data-pick="${kind}" data-sec="${sec.id}">${c?"換一張":"挑卡"}</button></div>
     ${c?miniGridHtml(c.pattern):""}</div>`;
@@ -1098,11 +1153,19 @@ function openFillPicker(){
 }
 function renderPicker(){
   const el=document.getElementById("picklist"), q=picking.q.toLowerCase();
+  // 幫段落挑過門時，拍號不合的疊不進樂句，直接不要列出來
+  let need=null;
+  if(picking.mode==="section" && picking.kind==="fill"){
+    const sec=curSong().sections.find(x=>x.id===picking.secId), g=sec&&cardById(sec.grooveRef);
+    if(g) need=meterKey(g.pattern);
+  }
   const list=data.patterns.filter(c=>c.kind===picking.kind && !c.archived &&
+    (!need || meterKey(c.pattern)===need) &&
     (!q || (displayName(c)+" "+c.note+" "+c.tags.join(" ")).toLowerCase().includes(q)));
+  // 這裡點卡片＝選這張，所以試聽仍是明確的按鈕
   el.innerHTML = list.length
-    ? list.map(c=>cardHtml(c,{ flat:true, buttons:`<button data-play="${c.id}">試聽</button><button class="primary" data-use="${c.id}">選這張</button>` })).join("")   // 這裡點卡片＝選這張，所以試聽仍是明確的按鈕
-    : '<div class="empty">節奏庫裡沒有符合的卡。先去節奏庫做一張。</div>';
+    ? list.map(c=>cardHtml(c,{ flat:true, buttons:`<button data-play="${c.id}">試聽</button><button class="primary" data-use="${c.id}">選這張</button>` })).join("")
+    : `<div class="empty">${need?"沒有 "+METERS[need].label+" 的過門——過門要跟節奏同一個拍號才疊得起來。":"節奏庫裡沒有符合的卡。先去節奏庫做一張。"}</div>`;
   el.querySelectorAll("[data-play]").forEach(b=>b.onclick=e=>{ e.stopPropagation();
     const c=cardById(b.dataset.play); if(c) playToggle(c.pattern,b); });
   const use=id=>{

@@ -85,7 +85,9 @@ python3 -m http.server 8777
 
 可選配貼 YouTube 連結聽原曲 feel；現場曲速常和 YT 不同，影片只是參考、不是時間軸主軸。
 
-目前固定 **4/4、16 格（十六分音符）**。因此標籤裡沒有 shuffle / 6-8——16 格打不出三連音，與其做個假的不如不做。
+支援四種拍號：**4/4**（16 格）、**3/4**、**6/8**、**4/4 shuffle**（後三種都是 12 格）。
+在卡片的「編輯」裡切換。6/8 的 BPM 是**附點四分**（一小節兩下）。
+過門要跟節奏同一個拍號才疊得起來，挑卡時會自動濾掉不合的。
 
 ---
 
@@ -140,10 +142,10 @@ python3 -m http.server 8777
 ## 技術
 
 - `index.html`（程式）＋ `library.json`（官方庫內容），純前端無 build，個人資料存 localStorage（key `drumchart_v4`）。
-- 測試：`node test.js`（146 條，不需要瀏覽器）。
+- 測試：`node test.js`（174 條，不需要瀏覽器）。
 - 資料模型：`patterns[]` 是第一級公民（卡片），`songs[].sections[]` 只存卡片 id（`grooveRef` / `fillRef`）。
   變體用 `parent` 表示，只做一層。
-- 鼓譜資料格式：`pattern = { tempo, ri[], oh[], hh[], tm[], sn[], kk[] }`，每軌 16 格。
+- 鼓譜資料格式：`pattern = { tempo, meter, cr[], ri[], oh[], hh[], tm[], sn[], kk[] }`，格數由拍號決定（16 或 12）。
   `tm` 值 1/2/3 = 高/中/低 tom；`sn` 值 1/2 = 重音/ghost；其餘 0/1。
 - 播放用 Web Audio 載入 `samples/` 的真鼓取樣 MP3 觸發；各鼓件音量在程式裡的 `GAINS` 微調。
   **開鈸接閉鈸會自動掐斷**（30ms 淡出），跟真的踩踏板一樣。

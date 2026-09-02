@@ -75,7 +75,8 @@ const EXPORTS='{data,filt,play,cardById,childrenOf,matches,encCard,decCard,songP
   'MAX_PER_SECTION,defaultAxis,filtering,TAG_GROUPS,ALL_TAGS,fromV3,migrate,normCard,defaultData,syncLibrary,'+
   'mergeLibrary,receiveCard,takePastedLink,readOnly,publishSet,cardPayload,picking,mergedBar,phrase,isFav,'+
   'toggleFav,cellGlyph,cycle,SAMPLE_FILES,emptyPattern,trans,playSeq,stopTransport,loopFillCard,fillCtrlHtml,'+
-  'displayName,describeDiff,changedLanes,isAutoName,showFamily,childrenOf,fireStep,chokeOpenHats,openHats,buffers,CHOKE}';
+  'displayName,describeDiff,changedLanes,isAutoName,showFamily,childrenOf,fireStep,chokeOpenHats,openHats,buffers,CHOKE,'+
+  'METERS,METER_KEYS,meterOf,meterKey,reMeter,stepDur,sameMeter,gridHtml,normPattern,mkPat}';
 function boot(){ store={}; return new Function('return (function(){ '+body+'\n; return '+EXPORTS+'; })()')(); }
 const A=(c,m)=>{ if(!c) throw new Error('FAIL: '+m); console.log('ok -',m); };
 const box=()=>({ innerHTML:'', querySelectorAll(){ return []; } });
@@ -84,8 +85,9 @@ const box=()=>({ innerHTML:'', querySelectorAll(){ return []; } });
 // ================= 真正的 library.json：只檢查結構 =================
 A(REAL.type==='drumchart-library'&&typeof REAL.version==='number','library.json 有 type 與 version');
 A(Array.isArray(REAL.patterns),'library.json 有 patterns 陣列（目前 '+REAL.patterns.length+' 張）');
-A(REAL.patterns.every(c=>c.id&&c.name&&LK.every(k=>Array.isArray(c.pattern[k])&&c.pattern[k].length===16)),
-  '每張卡都有 id、名稱與七軌 ×16 格');
+const STEPS={'4/4':16,'3/4':12,'6/8':12,'shuffle':12};
+A(REAL.patterns.every(c=>c.id&&LK.every(k=>Array.isArray(c.pattern[k])&&c.pattern[k].length===(STEPS[c.pattern.meter]||16))),
+  '每張卡都有 id、名稱與七軌，格數符合它的拍號');
 A(new Set(REAL.patterns.map(c=>c.id)).size===REAL.patterns.length,'沒有重複的 id');
 A(REAL.patterns.every(c=>!c.parent||REAL.patterns.some(x=>x.id===c.parent)),'每個變體的父卡都在庫裡');
 A(REAL.patterns.every(c=>!c.parent||!REAL.patterns.find(x=>x.id===c.parent).parent),'家族只有一層');
@@ -327,6 +329,54 @@ N.filt.q='';
 // 新卡與變體預設不取名
 A(/name:"",\s*kind:filt.kind/.test(src),'＋新增卡片預設不取名');
 A(/const n=\{ id:uid\(\), name:"", kind:c.kind/.test(src),'做變體預設不取名');
+
+// ================= 拍號 =================
+const T=boot(); await T.syncLibrary();
+A(T.METER_KEYS.join()==='4/4,3/4,6/8,shuffle','四種拍號');
+A(T.METERS['4/4'].steps===16&&T.METERS['3/4'].steps===12&&T.METERS['6/8'].steps===12&&T.METERS['shuffle'].steps===12,
+  '4/4 是 16 格，其餘三種共用 12 格的網格');
+A(T.METERS['3/4'].beat===4&&T.METERS['3/4'].count===4,'3/4：三拍，每拍四個十六分');
+A(T.METERS['6/8'].beat===6&&T.METERS['6/8'].count===2,'6/8：兩個附點四分為主拍，每兩格數一個八分（1-6）');
+A(T.METERS['shuffle'].beat===3&&T.METERS['shuffle'].count===3,'shuffle：四拍，每拍三連音');
+// 每格時長：BPM 的那一拍等於幾格
+const at=(m,bpm)=>T.stepDur(T.emptyPattern(m),bpm);
+A(Math.abs(at('4/4',120)-0.125)<1e-9,'4/4 120BPM：一格 = 十六分 = 0.125s');
+A(Math.abs(at('3/4',120)-0.125)<1e-9,'3/4 的一格跟 4/4 一樣是十六分');
+A(Math.abs(at('shuffle',120)-0.5/3)<1e-9,'shuffle 一格 = 三連音的一個');
+A(Math.abs(at('6/8',60)-1/6)<1e-9,'6/8 60BPM：附點四分一秒，一格 = 1/6 秒');
+A(Math.abs(at('6/8',60)*12-2)<1e-9,'6/8 一小節 = 兩個附點四分拍');
+// 空 pattern 與正規化
+A(T.emptyPattern('6/8').hh.length===12&&T.emptyPattern('6/8').meter==='6/8','emptyPattern 依拍號給格數');
+A(T.normPattern({meter:'3/4',hh:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]}).hh.length===12,'正規化會把多的格子截掉');
+A(T.normPattern({meter:'亂寫',hh:[1]}).meter==='4/4','不認得的拍號退回 4/4');
+A(T.normPattern({hh:[1]}).meter==='4/4','沒寫拍號的舊卡當 4/4');
+// 換拍號
+const p68=T.mkPat(60,{hh:'101010101010'},'6/8');
+const p44=T.reMeter(p68,'4/4');
+A(p44.meter==='4/4'&&p44.hh.length===16&&p44.hh.slice(0,12).join()===p68.hh.join()&&p44.hh[15]===0,
+  '換成格數多的拍號：原本的留著，後面補空');
+const back=T.reMeter(p44,'3/4');
+A(back.hh.length===12,'換成格數少的拍號：截掉後面');
+// 畫格子
+const mini68=T.miniGridHtml(p68);
+A((mini68.match(/class="mc/g)||[]).length===12,'6/8 的小譜是 12 格');
+A(/repeat\(12,/.test(mini68),'欄數跟著拍號走');
+A((mini68.match(/class="mn beat"/g)||[]).length===2,'6/8 只有兩條主拍線');
+A((mini68.match(/class="mn sub"/g)||[]).length===4,'另外四個八分位置畫細線');
+A(/>6</.test(mini68)&&!/>7</.test(mini68),'6/8 的拍號列數到 6');
+const mini34=T.miniGridHtml(T.mkPat(90,{hh:'101010101010'},'3/4'));
+A((mini34.match(/class="mn beat"/g)||[]).length===3&&/>3</.test(mini34)&&!/>4</.test(mini34),'3/4 數到 3，三條主拍線');
+A((T.gridHtml(p68).match(/class="cell/g)||[]).length===12*7,'編輯用的大格子也是 12 格 × 七軌');
+// 疊過門要同拍號
+const g44=T.cardById('g8').pattern, f68=T.mkPat(60,{tm:'000000000111'},'6/8');
+A(!T.sameMeter(g44,f68),'4/4 的節奏和 6/8 的過門不同拍號');
+A(T.phrase(g44,f68).length===1,'拍號不合就不加過門，不會疊出亂七八糟的東西');
+A(T.phrase(g44,T.cardById('f1').pattern).length===2,'同拍號才疊得起來');
+A(T.mergedBar(p68,T.mkPat(60,{tm:'000000000111'},'6/8')).hh.length===12,'合出來的小節維持 12 格');
+// 分享連結帶拍號
+const c68=T.normCard({id:'x68',name:'六八測試',kind:'groove',tags:[],pattern:p68});
+const dec68=T.decCard(T.encCard(c68));
+A(dec68.pattern.meter==='6/8'&&dec68.pattern.hh.join()===p68.hh.join(),'分享連結帶得動拍號');
 
 // ================= 開鈸接閉鈸要掐斷 =================
 const H=boot(); await H.syncLibrary();
