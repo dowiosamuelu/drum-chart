@@ -145,7 +145,7 @@ python3 -m http.server 8777
 ## 技術
 
 - `index.html`（程式）＋ `library.json`（官方庫內容），純前端無 build，個人資料存 localStorage（key `drumchart_v4`）。
-- 測試：`node test.js`（191 條，不需要瀏覽器）。
+- 測試：`node test.js`（195 條，不需要瀏覽器）。
 - 資料模型：`patterns[]` 是第一級公民（卡片），`songs[].sections[]` 只存卡片 id（`grooveRef` / `fillRef`）。
   變體用 `parent` 表示，只做一層。
 - 鼓譜資料格式：`pattern = { tempo, meter, cr[], ri[], oh[], hh[], tm[], sn[], kk[] }`，格數由拍號決定（16 或 12）。

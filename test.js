@@ -298,9 +298,9 @@ A(N.displayName(N.cardById('g8'))==='基本 8 beat','有取名就用名字');
 A(!N.cardHtml(nb).includes('class="dmeta"'),'沒取名的基礎卡不會把標籤重覆印兩次');
 // 沒取名的變體 → 講跟父卡差在哪
 const vg=un('vg','g8',{sn:'0020100200201002'});
-A(N.displayName(vg)==='多了 ghost','變體：'+N.displayName(vg));
+A(N.displayName(vg)==='ghost 1& 2a 3& 4a','變體講 ghost 的落點：'+N.displayName(vg));
 const vk=un('vk','g8',{kk:'1000100010001000'});
-A(N.displayName(vk)==='大鼓四分','變體：'+N.displayName(vk));
+A(N.displayName(vk)==='大鼓 1 2 3 4','變體講大鼓落點：'+N.displayName(vk));
 const vh=un('vh','g8',{hh:'1111111111111111'});
 A(N.displayName(vh)==='踩鈸 八分→十六分','變體：'+N.displayName(vh));
 const vr=un('vr','g8',{hh:'0000000000000000',ri:'1010101010101010'});
@@ -308,11 +308,22 @@ A(N.displayName(vr)==='換成 ride','變體：'+N.displayName(vr));
 const vm=un('vm','g8',{sn:'0000300000003000'});
 A(N.displayName(vm)==='小鼓改 rimclick','變體：'+N.displayName(vm));
 const vc=un('vc','g8',{cr:'1000000000000000'});
-A(N.displayName(vc)==='加 crash','變體：'+N.displayName(vc));
+A(N.displayName(vc)==='1 crash','變體講 crash 落點：'+N.displayName(vc));
 const vsame=un('vsame','g8',{});
 A(N.displayName(vsame)==='一樣','跟父卡完全相同時老實說「一樣」');
 const vmany=un('vmany','g8',{hh:'1111111111111111',sn:'0020300200201002',kk:'1000100010001000',cr:'1000000000000000'});
 A(N.displayName(vmany).includes('等'),'差太多時只講前兩項加「等」：'+N.displayName(vmany));
+// 同樣顆數、不同落點：這是最常見的變化，只講顆數會三張撞成同一句話
+const k1=un('k1','g8',{kk:'1000000010100000'}), k2=un('k2','g8',{kk:'1000001010000000'}), k3=un('k3','g8',{kk:'1000001000100000'});
+const ds=[k1,k2,k3].map(x=>N.displayName(x));
+A(new Set(ds).size===3,'同樣三顆大鼓、落點不同 → 三個不同的描述：'+ds.join(' ／ '));
+A(ds[0]==='大鼓 1 3 3&','講的是打點位置不是顆數');
+// 落點太多就退回顆數，不然一行塞不下
+const kmany=un('kmany','g8',{kk:'1111111111111111'});
+A(N.displayName(kmany)==='大鼓 16 下','落點超過六個就退回講顆數');
+// 開鈸造成的踩鈸缺口不要重覆講兩次
+const vo=un('vo','g8',{hh:'1010101010101000',oh:'0000000000000010'});
+A(N.displayName(vo)==='4& 開鈸','開鈸只講開鈸，不會再嘮叨一句「踩鈸八分→7 下」');
 // 取了名就用名字
 vg.name='我的 ghost 版';
 A(N.displayName(vg)==='我的 ghost 版','取了名就蓋過自動描述');

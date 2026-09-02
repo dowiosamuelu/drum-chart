@@ -489,8 +489,9 @@ function mergeLibrary(lib){
     const c=normCard(raw); c.official=true; c.archived=false;
     const cur=cardById(id);
     if(!cur){ data.patterns.push(c); added++; }
-    // cur.publish：作者自己標了要發佈的卡，一旦出現在 library.json 就轉正成官方卡
-    else if(cur.official||cur.publish){ Object.assign(cur,c); cur.publish=false; updated++; }
+    // 同一個 id 出現在 library.json，那就是同一張卡：直接轉正成官方卡。
+    // 這涵蓋作者自己寫、發佈之後再同步回來的情況（否則他手上那份永遠是個人卡）。
+    else { Object.assign(cur,c); cur.publish=false; updated++; }
   });
   // 官方庫移除的卡不刪，只封存——不然別人半年前排的歌會突然少一段
   data.patterns.forEach(c=>{ if(c.official && !incoming.has(c.id) && !c.archived){ c.archived=true; archived++; } });
@@ -680,32 +681,43 @@ function cycle(lane,v){ if(lane==="sn"||lane==="tm") return (v+1)%4; return v?0:
 // 所以名字選填：基礎卡沒取名就用標籤，變體沒取名就講「跟父卡差在哪」。
 const LANE_CN={cr:"crash",ri:"ride",oh:"開鈸",hh:"踩鈸",tm:"tom",sn:"小鼓",kk:"大鼓"};
 const DENSITY={0:"沒有",2:"二分",4:"四分",8:"八分",16:"十六分"};
-function density(a,M){ const n=a.filter(Boolean).length;
-  return (M&&M.label!=="4/4") ? (n+" 下") : (DENSITY[n]||(n+" 下")); }
+// 只有 4/4 的四分／八分／十六分講得通；其他情況一律講落點或顆數
+function namedDensity(a,M){ return (M&&M.label==="4/4") ? (DENSITY[a.filter(Boolean).length]||null) : null; }
+// 打點的口語位置：1 1e 1& 1a…（6/8 是 1 1& 2 2&…，shuffle 是 1 1& 1a…）
+const SUBS={ "4/4":["","e","&","a"], "3/4":["","e","&","a"], "6/8":["","&"], "shuffle":["","&","a"] };
+function stepName(mk,s){ const M=METERS[mk]||METERS[DEFAULT_METER], subs=SUBS[mk]||["","e","&","a"];
+  return (Math.floor(s/M.count)+1)+(subs[s%M.count]||""); }
+function hitPos(p,k,pred){ const mk=meterKey(p);
+  return p[k].map((v,i)=>((pred?pred(v):v)?stepName(mk,i):null)).filter(Boolean); }
+function posOrCount(list){ return (list.length&&list.length<=6) ? list.join(" ") : (list.length+" 下"); }
 function handLane(p){ return p.hh.some(Boolean)?"hh":p.ri.some(Boolean)?"ri":p.tm.some(Boolean)?"tm":null; }
 function changedLanes(c,b){ return LANE_KEYS.filter(k=>c.pattern[k].join()!==b.pattern[k].join()); }
+// 講「差在哪」的關鍵是**落點**不是顆數：同樣三顆大鼓打在 1 3 3& 和 1 2& 3 是完全不同的東西，
+// 只講「多 1 顆」三張變體會撞成同一句話。
 function describeDiff(c,b){
-  const cp=c.pattern, bp=b.pattern, out=[];
+  const cp=c.pattern, bp=b.pattern, M=meterOf(cp), out=[];
   const ch=k=>cp[k].join()!==bp[k].join(), has=(p,k)=>p[k].some(Boolean);
+  const ohAdded=has(cp,"oh")&&!has(bp,"oh"), crAdded=has(cp,"cr")&&!has(bp,"cr");
+  // 手：換音色 / 從無到有 / 密度 / 落點
   const hb=handLane(bp), hc=handLane(cp);
   if(hb&&hc&&hb!==hc) out.push("換成 "+LANE_CN[hc]);
-  else if(hb&&hc&&ch(hb)){ const M=meterOf(cp), d1=density(bp[hb],M), d2=density(cp[hc],M);
-    if(d1!==d2) out.push(LANE_CN[hb]+" "+d1+"→"+d2); }
-  const ghost=p=>p.sn.filter(v=>v===2).length, rim=p=>p.sn.filter(v=>v===3).length;
-  if(ghost(cp)&&!ghost(bp)) out.push("多了 ghost");
-  else if(!ghost(cp)&&ghost(bp)) out.push("拿掉 ghost");
-  if(rim(cp)&&!rim(bp)) out.push("小鼓改 rimclick");
-  if(ch("kk")){
-    const n1=bp.kk.filter(Boolean).length, n2=cp.kk.filter(Boolean).length;
-    const M=meterOf(cp);
-    const four=a=>M.label==="4/4"&&a.filter(Boolean).length===4&&[0,4,8,12].every(i=>a[i]);
-    if(four(cp.kk)&&!four(bp.kk)) out.push("大鼓四分");
-    else if(n2>n1) out.push("大鼓多 "+(n2-n1)+" 顆");
-    else if(n2<n1) out.push("大鼓少 "+(n1-n2)+" 顆");
-    else out.push("大鼓換位置");
+  else if(!hb&&hc) out.push("加"+LANE_CN[hc]+" "+(namedDensity(cp[hc],M)||posOrCount(hitPos(cp,hc))));
+  else if(hb&&hc&&ch(hb)&&!ohAdded){   // 開鈸造成的差異由下面那句講，這裡不重覆
+    const d1=namedDensity(bp[hb],M), d2=namedDensity(cp[hc],M);
+    out.push((d1&&d2&&d1!==d2) ? LANE_CN[hb]+" "+d1+"→"+d2 : LANE_CN[hb]+" "+posOrCount(hitPos(cp,hc)));
   }
-  if(has(cp,"oh")&&!has(bp,"oh")) out.push("加開鈸");
-  if(has(cp,"cr")&&!has(bp,"cr")) out.push("加 crash");
+  if(ohAdded) out.push(posOrCount(hitPos(cp,"oh"))+" 開鈸");
+  if(crAdded) out.push(posOrCount(hitPos(cp,"cr"))+" crash");
+  // 小鼓：ghost／rimclick 是音色的事，其餘講落點
+  const ghost=p=>p.sn.filter(v=>v===2).length, rim=p=>p.sn.filter(v=>v===3).length;
+  if(ch("sn")){
+    if(ghost(cp)&&!ghost(bp)) out.push("ghost "+posOrCount(hitPos(cp,"sn",v=>v===2)));
+    else if(!ghost(cp)&&ghost(bp)) out.push("拿掉 ghost");
+    else if(rim(cp)&&!rim(bp)) out.push("小鼓改 rimclick");
+    else out.push("小鼓 "+posOrCount(hitPos(cp,"sn")));
+  }
+  if(ch("kk")) out.push("大鼓 "+posOrCount(hitPos(cp,"kk")));
+  if(ch("tm")&&hc!=="tm") out.push("tom "+posOrCount(hitPos(cp,"tm")));
   if(!out.length){ const d=LANE_KEYS.filter(ch).map(k=>LANE_CN[k]);
     return d.length ? d.slice(0,2).join("、")+" 有變" : "一樣"; }
   // 講不完的通常代表它其實不是變體，是另一張獨立的卡——那個難看的描述就是提醒
