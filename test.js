@@ -76,7 +76,7 @@ const EXPORTS='{data,filt,play,cardById,childrenOf,matches,encCard,decCard,songP
   'mergeLibrary,receiveCard,takePastedLink,readOnly,publishSet,cardPayload,picking,mergedBar,phrase,isFav,'+
   'toggleFav,cellGlyph,cycle,SAMPLE_FILES,emptyPattern,trans,playSeq,stopTransport,loopFillCard,fillCtrlHtml,'+
   'displayName,describeDiff,changedLanes,isAutoName,showFamily,childrenOf,fireStep,chokeOpenHats,openHats,buffers,CHOKE,'+
-  'METERS,METER_KEYS,meterOf,meterKey,reMeter,stepDur,sameMeter,gridHtml,normPattern,mkPat}';
+  'METERS,METER_KEYS,meterOf,meterKey,reMeter,stepDur,sameMeter,gridHtml,normPattern,mkPat,moveCard,blocks,publishSet}';
 function boot(){ store={}; return new Function('return (function(){ '+body+'\n; return '+EXPORTS+'; })()')(); }
 const A=(c,m)=>{ if(!c) throw new Error('FAIL: '+m); console.log('ok -',m); };
 const box=()=>({ innerHTML:'', querySelectorAll(){ return []; } });
@@ -329,6 +329,42 @@ N.filt.q='';
 // 新卡與變體預設不取名
 A(/name:"",\s*kind:filt.kind/.test(src),'＋新增卡片預設不取名');
 A(/const n=\{ id:uid\(\), name:"", kind:c.kind/.test(src),'做變體預設不取名');
+
+// ================= 調整順序 =================
+const S=boot(); await S.syncLibrary();
+const ids=()=>S.data.patterns.map(c=>c.id).join(',');
+A(S.blocks().every(b=>b[0].parent===null&&b.slice(1).every(x=>x.parent===b[0].id)),'家族在陣列裡是連在一起的');
+A(ids().indexOf('g8g')===ids().indexOf('g8')+3,'變體緊跟在它的基礎卡後面');
+// 變體換位置
+S.data.patterns.push(S.normCard({id:'g8x',name:'',kind:'groove',tags:['8 beat'],parent:'g8',
+  pattern:S.cardById('g8').pattern}));
+S.data.patterns=S.blocks().flat();
+let order=()=>S.childrenOf('g8').map(c=>c.id).join(',');
+A(order()==='g8g,g8x','兩個變體的初始順序');
+A(S.moveCard('g8x',-1)&&order()==='g8x,g8g','變體往前');
+A(S.moveCard('g8x',1)&&order()==='g8g,g8x','變體往後');
+A(!S.moveCard('g8g',-1),'變體不能排到基礎卡前面');
+A(!S.moveCard('g8x',1),'已經在最後就不動');
+// 基礎卡搬家，變體要跟著走
+const baseOrder=()=>S.data.patterns.filter(c=>!c.parent&&c.kind==='groove').map(c=>c.id).join(',');
+const b0=baseOrder().split(',');
+A(S.moveCard(b0[1],-1),'把第二張基礎卡往前搬');
+A(baseOrder().split(',')[0]===b0[1],'它變成第一張');
+A(S.blocks().every(b=>b.slice(1).every(x=>x.parent===b[0].id)),'搬完之後家族還是連在一起');
+A(ids().indexOf('g8g')>ids().indexOf('g8')&&ids().indexOf('g8x')>ids().indexOf('g8'),'變體跟著父卡一起搬，沒有被留下');
+// 節奏和過門各排各的
+const fillsBefore=S.data.patterns.filter(c=>c.kind==='fill').map(c=>c.id).join(',');
+S.moveCard('g8',1);
+A(S.data.patterns.filter(c=>c.kind==='fill').map(c=>c.id).join(',')===fillsBefore,'搬節奏不會動到過門的順序');
+A(!S.moveCard('沒這張',1),'搬不存在的卡不會炸');
+// 順序會被帶進匯出
+S.data.admin=true;
+A(S.publishSet().map(c=>c.id).join(',')===S.data.patterns.filter(c=>c.official&&!c.archived).map(c=>c.id).join(','),
+  '匯出 library.json 時保留你排好的順序');
+// 排序模式下的按鈕
+A(/data-mv="-1:\$\{c.id\}"/.test(src)&&/data-mv="1:\$\{c.id\}"/.test(src),'排序模式在卡片上給 ▲▼');
+A(/\.dcard\.sorting \.dbtns \{ opacity:1/.test(src),'排序模式的按鈕常駐，才能連續按');
+A(/if\(opt\.playOnClick && !sortOn\)/.test(src),'排序模式下點卡片不會播放，避免誤觸');
 
 // ================= 拍號 =================
 const T=boot(); await T.syncLibrary();

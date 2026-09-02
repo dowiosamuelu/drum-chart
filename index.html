@@ -112,6 +112,8 @@
   /* 操作是次要的，平常讓路給譜；滑上去才出現 */
   .dbtns { display:flex; gap:4px; flex-shrink:0; transition:opacity .12s; }
   .dcard .dbtns { opacity:0; }            /* 只在卡片裡才平常隱藏——彈窗裡的同名區塊要一直看得見 */
+  .dcard.sorting .dbtns { opacity:1; }    /* 排序模式：▲▼ 要一直看得到，不然沒法連續按 */
+  .dcard.sorting { cursor:default; }
   .dcard:hover .dbtns, .dcard:focus-within .dbtns { opacity:1; }
   @media (hover:none){ .dcard .dbtns { opacity:1; } }
   .pickerlist .dbtns { opacity:1; }
@@ -244,6 +246,7 @@
     </div>
     <div class="row"><input class="grow" id="searchBox" placeholder="搜尋名稱或備註" /></div>
     <label class="admrow" style="margin-top:8px"><input type="checkbox" id="favOnly" /> 只看收藏 ♥</label>
+    <label class="admrow"><input type="checkbox" id="sortMode" /> 調整順序（▲▼）</label>
     <div id="filters"></div>
     <div class="row">
       <button id="clearFilt">清除篩選</button>
@@ -445,6 +448,9 @@ function migrate(d){
   d.patterns=(d.patterns||[]).map(normCard);
   const ids=new Set(d.patterns.map(c=>c.id));
   d.patterns.forEach(c=>{ if(c.parent&&!ids.has(c.parent)) c.parent=null; });   // 父卡被刪掉就升為基礎卡
+  // 把每個家族排在一起（基礎卡後面緊跟著它的變體），排序與匯出才有可預期的順序
+  d.patterns=d.patterns.filter(c=>!c.parent)
+    .flatMap(b=>[b].concat(d.patterns.filter(c=>c.parent===b.id)));
   // 引用即使暫時找不到卡也保留：官方庫是非同步載入的，清掉會誤殺
   d.songs=(d.songs||[]).map(s=>({ id:s.id||uid(), name:s.name||"未命名", author:s.author||"", ytUrl:s.ytUrl||"", videoId:s.videoId||"",
     sections:(s.sections||[]).map(x=>({ id:x.id||uid(), label:x.label||"段落", note:x.note||"",
@@ -524,6 +530,26 @@ async function syncLibrary(){
 }
 function cardById(id){ return data.patterns.find(c=>c.id===id)||null; }
 function childrenOf(id){ return data.patterns.filter(c=>c.parent===id); }
+// 排序：以「家族」為單位。基礎卡搬家時變體跟著走，變體只在自己家裡換位置。
+function blocks(){ return data.patterns.filter(c=>!c.parent)
+  .map(b=>[b].concat(data.patterns.filter(c=>c.parent===b.id))); }
+function moveCard(id,dir){
+  const c=cardById(id); if(!c) return false;
+  const bl=blocks();
+  if(c.parent){
+    const blk=bl.find(x=>x[0].id===c.parent); if(!blk) return false;
+    const i=blk.indexOf(c), j=i+dir;
+    if(j<1||j>=blk.length) return false;          // j<1：不能排到基礎卡前面
+    [blk[i],blk[j]]=[blk[j],blk[i]];
+  } else {
+    const same=bl.filter(x=>x[0].kind===c.kind);  // 節奏和過門各自排各自的
+    const i=same.findIndex(x=>x[0]===c), j=i+dir;
+    if(j<0||j>=same.length) return false;
+    const gi=bl.indexOf(same[i]), gj=bl.indexOf(same[j]);
+    [bl[gi],bl[gj]]=[bl[gj],bl[gi]];
+  }
+  data.patterns=bl.flat(); save(); return true;
+}
 function familyOf(c){ const rootId=c.parent||c.id, root=cardById(rootId);
   return (root?[root]:[]).concat(childrenOf(rootId)).filter(x=>x.id!==c.id); }
 function curSong(){ return data.songs.find(s=>s.id===data.currentId)||data.songs[0]; }
@@ -725,11 +751,13 @@ function cardHtml(c, opt){ opt=opt||{};
   const ch=base?changedLanes(c,base):null;
   const only=(ch&&ch.length&&ch.length<=3)?ch:null;
   const auto=isAutoName(c), title=displayName(c);
-  const btns = opt.buttons===undefined ? `
+  const btns = opt.buttons!==undefined ? opt.buttons : (sortOn ? `
+      <button data-mv="-1:${c.id}" title="往前">▲</button>
+      <button data-mv="1:${c.id}" title="往後">▼</button>` : `
       ${c.parent?`<button data-ab="${c.id}">對照</button>`:""}
       <button data-variant="${c.id}">變體</button>
-      <button data-edit="${c.id}">編輯</button>` : opt.buttons;
-  return `<div class="dcard${c.parent&&!opt.flat?" variant":""}" data-card="${c.id}">
+      <button data-edit="${c.id}">編輯</button>`);
+  return `<div class="dcard${c.parent&&!opt.flat?" variant":""}${sortOn?" sorting":""}" data-card="${c.id}">
     <div class="dhead">
       <span class="dtitle"><span class="dname${auto?" auto":""}">${escapeHtml(title)}</span><span class="dbpm">${c.pattern.tempo}${meterKey(c.pattern)!==DEFAULT_METER?" · "+meterOf(c.pattern).label:""}</span></span>
       <span class="dbtns">${btns}</span>
@@ -748,7 +776,7 @@ function cardHtml(c, opt){ opt=opt||{};
 function wireCardButtons(root,opt){ opt=opt||{};
   root.querySelectorAll("[data-play]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
     const c=cardById(b.dataset.play); if(c) playToggle(c.pattern,b); }; });
-  if(opt.playOnClick) root.querySelectorAll(".dcard").forEach(el=>{ el.onclick=e=>{
+  if(opt.playOnClick && !sortOn) root.querySelectorAll(".dcard").forEach(el=>{ el.onclick=e=>{
     if(e.target.closest("button")) return;
     const c=cardById(el.dataset.card); if(!c) return;
     const f=c.kind==="groove"?loopFillCard():null;      // 過門卡自己就單獨 loop
@@ -761,6 +789,8 @@ function wireCardButtons(root,opt){ opt=opt||{};
     const c=cardById(b.dataset.variant); if(c) makeVariant(c); }; });
   root.querySelectorAll("[data-edit]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
     openCardDialog(b.dataset.edit); }; });
+  root.querySelectorAll("[data-mv]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
+    const [d,id]=b.dataset.mv.split(":"); if(moveCard(id,+d)) renderGallery(); }; });
   root.querySelectorAll("[data-fam]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
     showFamily(b.dataset.fam); }; });
   root.querySelectorAll("[data-fav]").forEach(b=>{ b.onclick=e=>{ e.stopPropagation();
@@ -771,6 +801,7 @@ function wireCardButtons(root,opt){ opt=opt||{};
 
 // ---------- 節奏庫：篩選與卡片牆 ----------
 let filt={ kind:"groove", q:"", tags:[], fav:false, arch:false, family:null };
+let sortOn=false;   // 排序是低頻的整理動作，開成一個模式比在每張卡上多塞兩顆按鈕乾淨
 // 只看某一個家族（基礎卡 ＋ 它的變體）。變體不出現在分類瀏覽的首頁，
 // 所以基礎卡上的「N 個變體」就是進來這裡的入口。
 function showFamily(id){ filt.family=id; renderGallery(); window.scrollTo({top:0,behavior:"smooth"}); }
@@ -1265,6 +1296,7 @@ document.getElementById("kindSeg").querySelectorAll("button").forEach(b=>{
 });
 document.getElementById("searchBox").oninput=e=>{ filt.q=e.target.value.trim(); renderGallery(); };
 document.getElementById("favOnly").onchange=e=>{ filt.fav=e.target.checked; renderGallery(); };
+document.getElementById("sortMode").onchange=e=>{ sortOn=e.target.checked; stopTransport(); renderGallery(); };
 document.getElementById("clearFilt").onclick=()=>{ filt.q=""; filt.tags=[]; filt.fav=false; filt.family=null;
   document.getElementById("searchBox").value=""; document.getElementById("favOnly").checked=false;
   renderFilters(); renderGallery(); };
