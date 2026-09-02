@@ -515,22 +515,40 @@ async function loadSamples(){ const c=AC();
   }catch(e){ console.warn("取樣載入失敗：",f,e); } }));
   samplesReady=true;
 }
-function playBuf(key,t,gain){ const b=buffers[key]; if(!b) return; const c=AC();
-  const src=c.createBufferSource(); src.buffer=b; const g=c.createGain(); g.gain.value=(gain==null?(GAINS[key]||1):gain);
-  src.connect(g); g.connect(c.destination); src.start(t); }
+function playBuf(key,t,gain){ const b=buffers[key]; if(!b) return null; const c=AC();
+  const src=c.createBufferSource(); src.buffer=b; const g=c.createGain();
+  const v=(gain==null?(GAINS[key]||1):gain); g.gain.value=v;
+  src.connect(g); g.connect(c.destination); src.start(t);
+  return { src, gain:g, v }; }
+
+// 踩鈸關起來就把還在響的 open hi-hat 掐掉——真的鼓就是這樣，開鈸接閉鈸不會兩個一起響。
+// 掐斷要留一小段淡出，直接 stop 會有 click。
+const CHOKE=0.03;
+let openHats=[];
+function chokeOpenHats(t){
+  openHats.forEach(o=>{ try{
+    o.gain.gain.setValueAtTime(o.v, t);
+    o.gain.gain.linearRampToValueAtTime(0, t+CHOKE);
+    o.src.stop(t+CHOKE+0.01);
+  }catch(e){} });
+  openHats.length=0;
+}
 
 // 播放器：一串 {p:pattern, bars:n}，循環。A/B 比較就是塞兩段進去。
 let trans={ timer:null, seq:null, idx:0, step:0, nextTime:0, el:null, key:null, tempo:90 };
 function fireStep(p,s,t){
+  // 這一格只要踏板有動作（開或關），先把上一個還在響的開鈸掐掉
+  if(p.oh[s]||p.hh[s]) chokeOpenHats(t);
   if(p.cr[s]) playBuf("crash",t);
   if(p.ri[s]) playBuf("ride",t);
-  if(p.oh[s]) playBuf("hatOpen",t);
+  if(p.oh[s]){ const n=playBuf("hatOpen",t); if(n) openHats.push(n); }
   if(p.hh[s]) playBuf("hatClosed",t);
   if(p.tm[s]) playBuf(p.tm[s]===1?"tomH":p.tm[s]===2?"tomM":"tomL",t);
   if(p.sn[s]===1) playBuf("snare",t); else if(p.sn[s]===2) playBuf("ghost",t); else if(p.sn[s]===3) playBuf("rimclick",t);
   if(p.kk[s]) playBuf("kick",t);
 }
 function stopTransport(){ if(trans.timer){ clearInterval(trans.timer); trans.timer=null; }
+  if(actx) chokeOpenHats(actx.currentTime);   // 停止時別留一顆開鈸掛在那裡響
   const el=trans.el;
   if(el){ if(el.tagName==="BUTTON"&&el.dataset.label) el.textContent=el.dataset.label; el.classList.remove("playing"); }
   trans.el=null; trans.key=null; }

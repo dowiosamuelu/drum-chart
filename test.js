@@ -53,8 +53,14 @@ global.document={ createElement:()=>El(), getElementById:()=>El(), querySelector
 global.localStorage={ getItem:k=>store[k]??null, setItem:(k,v)=>store[k]=v };
 global.window={}; global.location={hash:'',origin:'http://x',pathname:'/'}; global.history={replaceState(){}};
 global.navigator={}; global.alert=()=>{}; global.confirm=()=>true; global.prompt=()=>'';
-global.AudioContext=function(){ return {currentTime:0,state:'running',createBufferSource:()=>({connect(){},start(){}}),
-  createGain:()=>({gain:{},connect(){}}),decodeAudioData:()=>Promise.resolve({})}; };
+global.audioLog=[];
+global.AudioContext=function(){ return { currentTime:0, state:'running',
+  createBufferSource:()=>({ connect(){}, start(t){ audioLog.push(['start',t]); }, stop(t){ audioLog.push(['stop',t]); } }),
+  createGain:()=>({ gain:{ value:0,
+      setValueAtTime:(v,t)=>audioLog.push(['set',v,t]),
+      linearRampToValueAtTime:(v,t)=>audioLog.push(['ramp',v,t]) },
+    connect(){} }),
+  decodeAudioData:()=>Promise.resolve({}) }; };
 global.window.AudioContext=global.AudioContext;
 global.window.scrollTo=()=>{};
 global.setInterval=()=>1; global.clearInterval=()=>{};
@@ -69,7 +75,7 @@ const EXPORTS='{data,filt,play,cardById,childrenOf,matches,encCard,decCard,songP
   'MAX_PER_SECTION,defaultAxis,filtering,TAG_GROUPS,ALL_TAGS,fromV3,migrate,normCard,defaultData,syncLibrary,'+
   'mergeLibrary,receiveCard,takePastedLink,readOnly,publishSet,cardPayload,picking,mergedBar,phrase,isFav,'+
   'toggleFav,cellGlyph,cycle,SAMPLE_FILES,emptyPattern,trans,playSeq,stopTransport,loopFillCard,fillCtrlHtml,'+
-  'displayName,describeDiff,changedLanes,isAutoName,showFamily,childrenOf}';
+  'displayName,describeDiff,changedLanes,isAutoName,showFamily,childrenOf,fireStep,chokeOpenHats,openHats,buffers,CHOKE}';
 function boot(){ store={}; return new Function('return (function(){ '+body+'\n; return '+EXPORTS+'; })()')(); }
 const A=(c,m)=>{ if(!c) throw new Error('FAIL: '+m); console.log('ok -',m); };
 const box=()=>({ innerHTML:'', querySelectorAll(){ return []; } });
@@ -321,6 +327,30 @@ N.filt.q='';
 // 新卡與變體預設不取名
 A(/name:"",\s*kind:filt.kind/.test(src),'＋新增卡片預設不取名');
 A(/const n=\{ id:uid\(\), name:"", kind:c.kind/.test(src),'做變體預設不取名');
+
+// ================= 開鈸接閉鈸要掐斷 =================
+const H=boot(); await H.syncLibrary();
+Object.keys(H.SAMPLE_FILES).forEach(k=>H.buffers[k]={});   // 假裝取樣載好了
+const hp=H.emptyPattern(); hp.oh[0]=1; hp.hh[2]=1; hp.sn[4]=1;
+audioLog.length=0;
+H.fireStep(hp,0,10);                       // 開鈸
+A(H.openHats.length===1,'開鈸響著的時候會被記住');
+A(!audioLog.some(x=>x[0]==='ramp'),'還沒有人關踏板，不會掐');
+H.fireStep(hp,2,10.5);                     // 閉鈸
+A(audioLog.some(x=>x[0]==='ramp'&&x[1]===0&&x[2]===10.5+H.CHOKE),'閉鈸把開鈸淡出掐掉（留 '+(H.CHOKE*1000)+'ms 避免 click）');
+A(audioLog.some(x=>x[0]==='stop'),'掐完把音源停掉');
+A(H.openHats.length===0,'掐完就不再追蹤它');
+// 別的鼓件不該掐
+H.fireStep(hp,0,20); audioLog.length=0;
+H.fireStep(hp,4,20.5);                     // 小鼓
+A(!audioLog.some(x=>x[0]==='ramp'),'小鼓／大鼓／tom 不會掐開鈸');
+A(H.openHats.length===1,'開鈸繼續響');
+// 再一次開鈸也要掐掉前一個，不然會疊
+audioLog.length=0; H.fireStep(hp,0,21);
+A(audioLog.some(x=>x[0]==='ramp'&&x[1]===0),'連續兩個開鈸：後面的會掐掉前面的，不會疊在一起');
+A(H.openHats.length===1,'只留最新的那一個');
+H.stopTransport();
+A(H.openHats.length===0,'按停止也會把還在響的開鈸收掉');
 
 // ================= 沒標籤的卡不能憑空消失 =================
 const U=boot(); await U.syncLibrary();

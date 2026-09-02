@@ -19,7 +19,7 @@
 - **管理模式**（`data.admin`，本機 checkbox）：解開官方卡唯讀、顯示「收進官方庫」「從官方庫移除」
   「顯示已封存的卡」與「匯出 library.json」。
   **它不授予任何權限**——真正的權限是 repo 的 write 存取。資料本來就公開，藏起來沒有安全意義。
-- **測試**：`node test.js`（136 條，headless、假 DOM、假 fetch）。改動前後都跑一次。
+- **測試**：`node test.js`（146 條，headless、假 DOM、假 fetch）。改動前後都跑一次。
   行為測試一律用 test.js 裡的 **FIX 固定樣本**，不依賴 `library.json` 的實際內容——
   內容會被作者換掉，測試不該跟著垮。真正的 `library.json` 只做結構檢查（id 不重覆、七軌 ×16、家族一層…）。
 - **發佈迴圈**：作者的卡標 `publish:true` → 匯出 `library.json` → commit → 下次同步時
@@ -60,6 +60,9 @@
     空盒子跟音符搶視覺重量，所以拿掉；拍線是格子譜唯一真正需要的骨架。`gridHtml(p)` 是彈窗裡的可編輯大格子，六軌全開、有框線（那是點擊目標，需要看得見）。
   - 編輯在 `#cardDialog` 彈窗裡做，卡片牆不會因為編輯而重排。
 - **播放**：Web Audio 載入 `samples/*.mp3`（真鼓取樣）觸發；`playBuf()` + `GAINS` 表做各鼓件音量微調（open hi-hat 壓到 0.5）。
+- **開鈸掐音**：`chokeOpenHats()`——這一格只要踏板有動作（開或關）就把還在響的 open hi-hat 淡出掐掉（`CHOKE` 30ms，
+  直接 stop 會有 click）。真的鼓就是這樣，開鈸接閉鈸不會兩個一起響。連續兩個開鈸也會掐，不然會疊。
+  只有 `oh`／`hh` 會觸發，其他鼓件不會。停止播放時一併收掉。
   排程器是 `playSeq(items, btn, tempo)`（25ms lookahead），`items = [{p, bars}]` 循環播放。
   A/B 輪流播與樂句播放都是靠塞多段進 `playSeq`；**整串共用同一個 tempo**，差別才聽得出來。
 - **播放器認 key 不認 DOM 元素**（`trans.key`，例如 `card:g8` / `sec:abc`）。元素會因為重繪而消失，
