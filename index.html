@@ -641,10 +641,15 @@ function playSeq(items, el, tempo, key){
 function playToggle(pattern, btn){ playSeq([{p:pattern,bars:1}], btn, pattern.tempo); }
 // 過門疊在節奏上：某一格只要過門有東西，那一格整排就換成過門（節奏讓位）；
 // 過門空著的格子就繼續走節奏。所以只佔最後一拍的過門＝前三拍節奏、第四拍過門。
+// 過門從它的第一個音開始接管，之後整段都聽過門——包括過門裡的休止。
+// （早期的做法是「哪一格有音才覆蓋」，那會讓過門中間的空隙漏出底下的踩鈸；
+//   實際打鼓時過門一開始 groove 就停了。）
+function fillStart(f,n){ for(let s=0;s<n;s++) if(LANE_KEYS.some(k=>f[k][s])) return s; return -1; }
 function mergedBar(g,f){
   const key=meterKey(g), o=emptyPattern(key), n=METERS[key].steps; o.tempo=g.tempo;
+  const start=fillStart(f,n);
   for(let s=0;s<n;s++){
-    const src = LANE_KEYS.some(k=>f[k][s]) ? f : g;
+    const src = (start>=0 && s>=start) ? f : g;   // 過門開始之前走 groove，之後全部交給過門
     LANE_KEYS.forEach(k=>o[k][s]=src[k][s]);
   }
   return o;

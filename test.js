@@ -72,7 +72,7 @@ global.fetch=(u)=>{ if(String(u).includes('library.json')){
 
 const EXPORTS='{data,filt,play,cardById,childrenOf,matches,encCard,decCard,songPayload,importSong,mergeCards,'+
   'renderGallery,renderBrowse,renderWall,renderSections,renderPicker,miniGridHtml,cardHtml,LANES,LANE_KEYS,'+
-  'MAX_PER_SECTION,defaultAxis,filtering,TAG_GROUPS,ALL_TAGS,fromV3,migrate,normCard,defaultData,syncLibrary,'+
+  'MAX_PER_SECTION,defaultAxis,filtering,TAG_GROUPS,ALL_TAGS,fromV3,migrate,normCard,defaultData,syncLibrary,fillStart,'+
   'mergeLibrary,receiveCard,takePastedLink,readOnly,publishSet,cardPayload,picking,mergedBar,phrase,isFav,'+
   'toggleFav,cellGlyph,cycle,SAMPLE_FILES,emptyPattern,trans,playSeq,stopTransport,loopFillCard,fillCtrlHtml,'+
   'displayName,describeDiff,changedLanes,isAutoName,showFamily,childrenOf,fireStep,chokeOpenHats,openHats,buffers,CHOKE,'+
@@ -238,9 +238,21 @@ A(h.includes('>♡</button>'),'沒收藏是空心');
 
 // ================= 過門疊在樂句尾 =================
 const f1=M.cardById('f1'), mb=M.mergedBar(g8.pattern,f1.pattern);
-A(mb.hh[0]===g8.pattern.hh[0],'過門空著的格子繼續走節奏');
-A(mb.tm[15]===f1.pattern.tm[15],'過門有東西的格子換成過門');
-A(mb.hh[12]===0&&f1.pattern.tm[12]!==0,'過門有東西的那一格，節奏整排讓位');
+A(mb.hh[0]===g8.pattern.hh[0]&&mb.kk[0]===g8.pattern.kk[0],'過門開始之前照常走節奏');
+A(mb.tm[15]===f1.pattern.tm[15],'過門開始之後照過門走');
+A(mb.hh[12]===0&&f1.pattern.tm[12]!==0,'過門一開始，節奏整排讓位');
+// 過門中間的休止要是真的休止，不能漏出底下的踩鈸
+const gap=M.mkPat(92,{tm:'0000000010001000'});      // 第三拍起，中間空兩格
+const gapBar=M.mergedBar(g8.pattern,gap);
+A(gapBar.tm[8]===1&&gapBar.tm[12]===1,'過門自己的音都在');
+A(gapBar.hh[10]===0&&gapBar.hh[14]===0&&g8.pattern.hh[10]!==0,'過門中間的空隙是休止，不會漏出踩鈸');
+A(gapBar.hh[6]===g8.pattern.hh[6],'但過門開始之前的踩鈸還在');
+A(M.fillStart(gap,16)===8,'過門的起點＝它的第一個音（第三拍）');
+A(M.fillStart(M.emptyPattern(),16)===-1,'完全空白的過門沒有起點');
+const empty=M.mergedBar(g8.pattern,M.emptyPattern());
+A(LK.every(k=>empty[k].join()===g8.pattern[k].join()),'空白過門＝完全不影響節奏');
+const full=M.mkPat(92,{sn:'1000000000000000'});
+A(M.mergedBar(g8.pattern,full).hh.every(v=>v===0),'過門從第一格開始就整小節都是過門');
 A(M.phrase(g8.pattern,null).length===1,'沒選過門就是單純 loop 節奏');
 const ph=M.phrase(g8.pattern,f1.pattern);
 A(ph.length===2&&ph[0].p===g8.pattern&&ph[1].p!==f1.pattern,'第一小節純節奏，第二小節節奏＋過門');
